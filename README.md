@@ -11,6 +11,7 @@ npm run keys:generate           # paste the output into .env
 npm install
 npm run db:migrate              # apply migrations
 npm run db:seed                 # prints an invitation link for the first Super Admin
+npm run db:seed:demo            # optional: demo courses, people and activity (prints the logins)
 npm run dev                     # http://localhost:3000
 ```
 
@@ -35,6 +36,11 @@ Open the printed invitation link, set a password, and enrol your authenticator a
 - Trainer ratings are anonymous to trainers: they see aggregates only after 3 ratings, and comments shuffled and undated. Learners see each other in discussions by first name and initial only.
 - Client companies are isolated in the data layer (`src/server/pii/users.ts`, `src/server/rbac.ts`), and integration tests cover it.
 - `/styleguide` shows the design tokens and components.
+
+## Security and POPIA
+
+- `docs/SECURITY.md`: the Phase 7 security review, what was fixed, and the **deployment checklist** (HTTPS, `TRUSTED_PROXY_HOPS`, ClamAV, key storage, backups).
+- `docs/POPIA.md`: how the platform meets each POPIA condition, and what YARI GROUP must do before launch.
 
 ## Scheduled jobs
 

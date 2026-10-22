@@ -37,7 +37,9 @@ export interface InviteInput {
 }
 
 export type InviteResult =
-  { kind: "invited"; userId: string; token: string } | { kind: "added-existing"; userId: string };
+  | { kind: "invited"; userId: string; token: string }
+  | { kind: "added-existing"; userId: string }
+  | { kind: "pending-acceptance"; userId: string; token: string | null };
 
 /** Throws PermissionError unless `actor` may grant `role` (in `organizationId`). */
 export function assertCanInvite(actor: Actor, role: Role, organizationId: string | null | undefined) {
@@ -58,6 +60,10 @@ export function assertCanInvite(actor: Actor, role: Role, organizationId: string
 export async function inviteUser(actor: Actor, input: InviteInput): Promise<InviteResult> {
   const organizationId = input.organizationId || null;
   assertCanInvite(actor, input.role, organizationId);
+  if (organizationId && !isSuperAdmin(actor.roles)) {
+    const org = await db.organization.findUnique({ where: { id: organizationId }, select: { status: true } });
+    if (org?.status !== "ACTIVE") throw new PermissionError("This company's access has ended.");
+  }
   const email = normaliseEmail(input.email);
   const emailIdx = emailIndex(email);
 
@@ -76,6 +82,41 @@ export async function inviteUser(actor: Actor, input: InviteInput): Promise<Invi
           profile: { create: { fullNameEnc: enc.fullName(userId, input.fullName.trim()) } },
         },
       });
+    }
+
+    // A company can't attach someone who already has an account: that would show the company
+    // their details and let it enrol them. The person is asked instead, and nothing is granted
+    // until they accept (see respondToCompanyInvitation).
+    if (existing && !isSuperAdmin(actor.roles) && organizationId) {
+      const member = await tx.orgMembership.findUnique({
+        where: { organizationId_userId: { organizationId, userId } },
+      });
+      if (!member) {
+        await tx.orgInvitation.upsert({
+          where: { organizationId_userId: { organizationId, userId } },
+          create: { organizationId, userId, invitedById: actor.id, department: input.department ?? null },
+          update: { invitedById: actor.id, department: input.department ?? null },
+        });
+        await audit(
+          {
+            actorId: actor.id,
+            action: "user.invited",
+            entityType: "User",
+            entityId: userId,
+            orgId: organizationId,
+            meta: { role: input.role, existing: true, pending: true },
+          },
+          tx,
+        );
+        return {
+          kind: "pending-acceptance" as const,
+          userId,
+          token:
+            existing.status === "INVITED"
+              ? await issueToken(tx, userId, "INVITE", INVITE_DAYS * DAY_MS)
+              : null,
+        };
+      }
     }
 
     await grantRole(tx, userId, input.role, input.role === "CLIENT_MANAGER" ? organizationId : null);
@@ -117,6 +158,39 @@ async function ensureMembership(tx: Tx, userId: string, organizationId: string, 
   if (!exists) {
     await tx.orgMembership.create({ data: { id: newId(), organizationId, userId, department } });
   }
+}
+
+/** Companies that have asked to add this person, waiting for their answer. */
+export async function pendingCompanyInvitations(userId: string) {
+  return db.orgInvitation.findMany({
+    where: { userId, organization: { status: "ACTIVE" } },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, createdAt: true, organization: { select: { name: true } } },
+  });
+}
+
+/** The person accepts (joins the company as a learner) or declines a company's invitation. */
+export async function respondToCompanyInvitation(actor: Actor, invitationId: string, accept: boolean) {
+  await db.$transaction(async (tx) => {
+    const inv = await tx.orgInvitation.findUnique({ where: { id: invitationId } });
+    if (!inv || inv.userId !== actor.id) throw new PermissionError();
+    await tx.orgInvitation.delete({ where: { id: inv.id } });
+    if (accept) {
+      await grantRole(tx, actor.id, "LEARNER", null);
+      await ensureMembership(tx, actor.id, inv.organizationId, inv.department);
+    }
+    await audit(
+      {
+        actorId: actor.id,
+        action: "user.updated",
+        entityType: "OrgInvitation",
+        entityId: inv.id,
+        orgId: inv.organizationId,
+        meta: { accepted: accept },
+      },
+      tx,
+    );
+  });
 }
 
 export async function issueToken(

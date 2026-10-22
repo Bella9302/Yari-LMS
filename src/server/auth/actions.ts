@@ -18,7 +18,13 @@ import {
   markSessionTwoFactorVerified,
   setSessionCookie,
 } from "@/server/auth/session";
-import { consumeRateLimit, lockoutUntil } from "@/server/auth/rate-limit";
+import {
+  consumeRateLimit,
+  LOGIN_LIMITS,
+  loginThrottled,
+  recentHits,
+  recordHit,
+} from "@/server/auth/rate-limit";
 import {
   completeTotpEnrolment,
   disableTotp,
@@ -79,51 +85,37 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
     return { error: "Too many sign-in attempts from this network. Please wait 15 minutes.", values };
   }
 
+  const emailKey = emailIndex(email);
+  const pairKey = `login-fail:${emailKey}:${ip}`;
+  const emailFailKey = `login-fail:${emailKey}`;
+  const [perConnection, perEmail] = await Promise.all([
+    recentHits(pairKey, LOGIN_LIMITS.perConnection.windowMs),
+    recentHits(emailFailKey, LOGIN_LIMITS.perEmail.windowMs),
+  ]);
+  if (loginThrottled({ perConnection, perEmail })) {
+    await burnPasswordCheck(password);
+    return {
+      error: "Too many failed attempts for this email. Wait 15 minutes, or reset your password.",
+      values,
+    };
+  }
+  const failed = async (userId: string | null) => {
+    await Promise.all([recordHit(pairKey), recordHit(emailFailKey)]);
+    if (userId) await db.user.update({ where: { id: userId }, data: { failedLogins: { increment: 1 } } });
+    await audit({ actorId: null, action: "auth.login_failed", entityType: "User", entityId: userId });
+    return { error: GENERIC_LOGIN_ERROR, values };
+  };
+
   const user = await db.user.findUnique({
-    where: { emailIdx: emailIndex(email) },
-    select: {
-      id: true,
-      passwordHash: true,
-      status: true,
-      failedLogins: true,
-      lockedUntil: true,
-      totpEnabledAt: true,
-    },
+    where: { emailIdx: emailKey },
+    select: { id: true, passwordHash: true, status: true, totpEnabledAt: true },
   });
 
   if (!user || !user.passwordHash || user.status !== "ACTIVE") {
     await burnPasswordCheck(password);
-    await audit({
-      actorId: null,
-      action: "auth.login_failed",
-      entityType: "User",
-      entityId: user?.id ?? null,
-    });
-    return { error: GENERIC_LOGIN_ERROR, values };
+    return failed(user?.id ?? null);
   }
-
-  if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
-    await burnPasswordCheck(password);
-    return {
-      error:
-        "This account is temporarily locked after several failed attempts. Try again later, or reset your password.",
-      values,
-    };
-  }
-
-  if (!(await verifyPassword(user.passwordHash, password))) {
-    const failedLogins = user.failedLogins + 1;
-    const lockedUntil = lockoutUntil(failedLogins);
-    await db.user.update({ where: { id: user.id }, data: { failedLogins, lockedUntil } });
-    await audit({
-      actorId: null,
-      action: lockedUntil ? "auth.locked" : "auth.login_failed",
-      entityType: "User",
-      entityId: user.id,
-      meta: { failedLogins },
-    });
-    return { error: GENERIC_LOGIN_ERROR, values };
-  }
+  if (!(await verifyPassword(user.passwordHash, password))) return failed(user.id);
 
   await db.user.update({
     where: { id: user.id },
@@ -309,6 +301,14 @@ export async function resetPasswordAction(_prev: FormState, formData: FormData):
   const problems = passwordProblems(password);
   if (problems.length) return { fieldErrors: { password: problems.join(" ") } };
 
+  // Check the link before the (deliberately expensive) password hash, so junk tokens cost nothing.
+  const expired = { error: "This reset link has expired or was already used. Request a new one." };
+  const ip = (await clientIp()) ?? "unknown";
+  if (!(await consumeRateLimit(`reset-submit:${ip}`, 20, 15 * MINUTE))) {
+    return { error: "Too many attempts from this network. Please wait 15 minutes." };
+  }
+  if (!(await peekToken(token, "PASSWORD_RESET"))) return expired;
+
   const passwordHash = await hashPassword(password);
   const userId = await db.$transaction(async (tx) => {
     const id = await consumeToken(tx, token, "PASSWORD_RESET");
@@ -316,7 +316,7 @@ export async function resetPasswordAction(_prev: FormState, formData: FormData):
     await tx.user.update({ where: { id }, data: { passwordHash, failedLogins: 0, lockedUntil: null } });
     return id;
   });
-  if (!userId) return { error: "This reset link has expired or was already used. Request a new one." };
+  if (!userId) return expired;
 
   await invalidateUserSessions(userId);
   await audit({

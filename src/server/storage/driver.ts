@@ -25,5 +25,7 @@ export interface StorageDriver {
     key: string,
     opts: { filename: string; contentType: string; inline: boolean },
   ): Promise<string | null>;
+  /** Server-side copy (used to snapshot an upload before it is checked and served). */
+  copy(fromKey: string, toKey: string): Promise<void>;
   delete(key: string): Promise<void>;
 }

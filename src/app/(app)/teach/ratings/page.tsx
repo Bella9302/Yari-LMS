@@ -51,12 +51,12 @@ export default async function TrainerRatingsPage() {
             </div>
             <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
               {CRITERIA.map((c) => (
-                <div key={c} className="space-y-2">
-                  <div className="flex items-baseline justify-between gap-3">
-                    <dt>{CRITERIA_LABELS[c]}</dt>
-                    <dd className="font-mono tabular-nums">{s.byCriterion[c].toFixed(1)}</dd>
-                  </div>
-                  <Meter value={s.byCriterion[c]} />
+                <div key={c} className="grid grid-cols-[1fr_auto] items-baseline gap-x-3 gap-y-2">
+                  <dt>{CRITERIA_LABELS[c]}</dt>
+                  <dd className="font-mono tabular-nums">{s.byCriterion[c].toFixed(1)}</dd>
+                  <dd className="col-span-2">
+                    <Meter value={s.byCriterion[c]} />
+                  </dd>
                 </div>
               ))}
             </dl>

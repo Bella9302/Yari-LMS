@@ -7,6 +7,8 @@ import { actorNames } from "@/server/audit-read";
 import { daysRemaining, formatDate } from "@/lib/format";
 import { Button } from "@/ui/button";
 import { EmptyState, PageHeader, Tag } from "@/ui/primitives";
+import { EXPORT_DAYS } from "@/server/pii/data-rights";
+import { EraseForm } from "./erase-form";
 
 export const metadata: Metadata = { title: "Data requests" };
 
@@ -23,7 +25,7 @@ export default async function DataRequestsPage() {
       <PageHeader
         eyebrow="Administration"
         title="Data requests"
-        description="POPIA requests from learners to receive a copy of, or delete, their information. Respond within 30 days."
+        description={`POPIA requests to receive a copy of, or delete, personal information. Respond within 30 days. Confirm the person's identity before acting. An approved copy can be downloaded by them, signed in, for ${EXPORT_DAYS} days.`}
       />
       {requests.length === 0 ? (
         <EmptyState title="No requests" />
@@ -57,9 +59,14 @@ export default async function DataRequestsPage() {
                   {r.status.replace("_", " ").toLowerCase()}
                 </Tag>
                 {open && (
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap items-start gap-2">
                     {r.status === "PENDING" && <StatusButton id={r.id} status="IN_PROGRESS" label="Start" />}
-                    <StatusButton id={r.id} status="COMPLETED" label="Mark done" />
+                    {r.type === "EXPORT" ? (
+                      <StatusButton id={r.id} status="COMPLETED" label="Make download available" />
+                    ) : (
+                      <EraseForm id={r.id} name={names.get(r.userId) ?? "this person"} />
+                    )}
+                    <StatusButton id={r.id} status="REJECTED" label="Reject" />
                   </div>
                 )}
               </li>

@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
-import { canAccessOrg } from "@/server/rbac";
+import { canAccessOrg, isSuperAdmin } from "@/server/rbac";
+import { assertActiveOrg } from "@/server/org-status";
 import { dec } from "@/server/pii/fields";
 import { PermissionError, type Actor } from "@/server/pii/users";
 import { computeGrade } from "@/server/assessment/grades";
@@ -24,8 +25,9 @@ export function trainingState(
   return e.progressPct > 0 || e.lastActiveAt ? "in_progress" : "not_started";
 }
 
-function assertOrg(actor: Actor, orgId: string) {
+async function assertOrg(actor: Actor, orgId: string) {
   if (!canAccessOrg(actor.roles, orgId)) throw new PermissionError();
+  if (!isSuperAdmin(actor.roles)) await assertActiveOrg(orgId);
 }
 
 /**
@@ -44,7 +46,7 @@ async function companyEnrolments(orgId: string) {
 }
 
 export async function getCompanyOverview(actor: Actor, orgId: string, now = new Date()) {
-  assertOrg(actor, orgId);
+  await assertOrg(actor, orgId);
   const [org, staffCount, enrolments] = await Promise.all([
     db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { id: true, name: true } }),
     db.orgMembership.count({ where: { organizationId: orgId, user: { status: { not: "DELETED" } } } }),
@@ -108,7 +110,7 @@ export async function getCompanyOverview(actor: Actor, orgId: string, now = new 
 
 /** One staff member's company-enrolled training: progress, results (pass/fail and scores) and attendance. */
 export async function getStaffTraining(actor: Actor, orgId: string, userId: string, now = new Date()) {
-  assertOrg(actor, orgId);
+  await assertOrg(actor, orgId);
   const member = await db.orgMembership.findUnique({
     where: { organizationId_userId: { organizationId: orgId, userId } },
     include: { user: { select: { id: true, status: true, profile: { select: { fullNameEnc: true } } } } },
@@ -224,7 +226,7 @@ export const STATE_LABELS: Record<TrainingState, string> = {
 
 /** Compliance report: one row per staff member per course. */
 export async function getComplianceRows(actor: Actor, orgId: string, now = new Date()) {
-  assertOrg(actor, orgId);
+  await assertOrg(actor, orgId);
   const [org, enrolments, members] = await Promise.all([
     db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { name: true } }),
     companyEnrolments(orgId),

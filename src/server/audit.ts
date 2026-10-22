@@ -1,4 +1,5 @@
 import "server-only";
+import { env } from "@/server/env";
 import type { Prisma } from "@/generated/prisma/client";
 import { db, type Tx } from "@/server/db";
 import { hashIp } from "@/server/crypto/blind-index";
@@ -21,6 +22,7 @@ export type AuditAction =
   | "user.suspended"
   | "user.reactivated"
   | "user.roles_changed"
+  | "user.erased"
   | "pii.viewed"
   | "pii.updated"
   | "org.created"
@@ -73,12 +75,25 @@ export interface AuditEntry {
   meta?: Prisma.InputJsonValue;
 }
 
+/**
+ * The client's address as seen by our own outermost proxy. Proxies append to X-Forwarded-For,
+ * so only the last `hops` entries were written by infrastructure we control.
+ */
+export function clientIpFrom(forwardedFor: string | null, hops: number): string | null {
+  if (!forwardedFor || hops < 1) return null;
+  const chain = forwardedFor
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return chain[chain.length - hops] ?? chain[0] ?? null;
+}
+
 export async function clientIp(): Promise<string | null> {
   try {
     // Imported lazily so scripts (seed, jobs) can use audit() outside Next.js.
     const { headers } = await import("next/headers");
     const h = await headers();
-    return h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? null;
+    return clientIpFrom(h.get("x-forwarded-for"), env().TRUSTED_PROXY_HOPS);
   } catch {
     return null; // outside a request (scripts, tests)
   }

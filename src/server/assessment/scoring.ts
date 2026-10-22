@@ -141,10 +141,11 @@ export function drawQuestions(
   }
   const questions = opts.shuffle ? shuffle(picked, rand) : picked;
   return questions.map((q) => {
-    if (!opts.shuffle) return q;
-    if (q.options.choices)
-      return { ...q, options: { ...q.options, choices: shuffle(q.options.choices, rand) } };
+    // Matching answers are stored in the same order as their prompts, so they are always
+    // shuffled: otherwise the order itself would give the answer away.
     if (q.options.right) return { ...q, options: { ...q.options, right: shuffle(q.options.right, rand) } };
+    if (opts.shuffle && q.options.choices)
+      return { ...q, options: { ...q.options, choices: shuffle(q.options.choices, rand) } };
     return q;
   });
 }

@@ -176,13 +176,27 @@ export function averages(rows: Row[]) {
   };
 }
 
+/**
+ * The oldest ratings, in whole batches of `size`. Every figure a trainer sees is built from
+ * batches, so it only ever changes by at least `size` ratings at a time: comparing the page
+ * before and after one learner rates (or subtracting one course from the total) can't reveal
+ * that learner's scores.
+ */
+export function inBatches<T extends { createdAt: Date }>(rows: T[], size = MIN_RESPONSES): T[] {
+  const sorted = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  return sorted.slice(0, Math.floor(sorted.length / size) * size);
+}
+
 /** Monthly overall averages for the last 12 months; months with too few ratings are left empty. */
 export function monthlyTrend(rows: Row[], now = new Date(), min = MIN_RESPONSES) {
   const months: { month: string; overall: number | null; count: number }[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
     const key = d.toISOString().slice(0, 7);
-    const inMonth = rows.filter((r) => r.createdAt.toISOString().slice(0, 7) === key);
+    const inMonth = inBatches(
+      rows.filter((r) => r.createdAt.toISOString().slice(0, 7) === key),
+      min,
+    );
     months.push({
       month: key,
       count: inMonth.length,
@@ -197,7 +211,7 @@ export function monthlyTrend(rows: Row[], now = new Date(), min = MIN_RESPONSES)
  * enough ratings that no single learner can be picked out. Comments are shuffled and undated.
  */
 export async function trainerSummary(trainerId: string, now = new Date()) {
-  const rows = await db.trainerRating.findMany({
+  const all = await db.trainerRating.findMany({
     where: { trainerId },
     select: {
       knowledge: true,
@@ -210,26 +224,34 @@ export async function trainerSummary(trainerId: string, now = new Date()) {
       course: { select: { title: true } },
     },
   });
-  if (rows.length < MIN_RESPONSES)
-    return { enough: false as const, count: rows.length, needed: MIN_RESPONSES };
+  const released = inBatches(all);
+  if (released.length < MIN_RESPONSES)
+    return { enough: false as const, count: all.length, needed: MIN_RESPONSES };
   const byCourse = new Map<string, { title: string; rows: Row[] }>();
-  for (const r of rows) {
+  for (const r of released) {
     const entry = byCourse.get(r.courseId) ?? { title: r.course.title, rows: [] };
     entry.rows.push(r);
     byCourse.set(r.courseId, entry);
   }
-  const comments = rows.map((r) => r.comment).filter((c): c is string => Boolean(c));
+  // A course is shown only if its own figure is in whole batches AND the rest of the total
+  // is either nothing or at least a batch (so "total minus this course" reveals no one).
+  const courses = [...byCourse.entries()].flatMap(([courseId, v]) => {
+    const shown = inBatches(v.rows);
+    const rest = released.length - shown.length;
+    return shown.length >= MIN_RESPONSES && (rest === 0 || rest >= MIN_RESPONSES)
+      ? [{ courseId, title: v.title, ...averages(shown) }]
+      : [];
+  });
+  const comments = released.map((r) => r.comment).filter((c): c is string => Boolean(c));
   for (let i = comments.length - 1; i > 0; i--) {
     const j = randomInt(i + 1);
     [comments[i], comments[j]] = [comments[j]!, comments[i]!];
   }
   return {
     enough: true as const,
-    ...averages(rows),
-    trend: monthlyTrend(rows, now),
-    courses: [...byCourse.entries()]
-      .filter(([, v]) => v.rows.length >= MIN_RESPONSES)
-      .map(([courseId, v]) => ({ courseId, title: v.title, ...averages(v.rows) })),
+    ...averages(released),
+    trend: monthlyTrend(released, now),
+    courses,
     comments,
   };
 }

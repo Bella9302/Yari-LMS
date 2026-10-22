@@ -1,6 +1,6 @@
 import "server-only";
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -20,7 +20,7 @@ export class LocalStorage implements StorageDriver {
   }
 
   async createUploadTarget(_key: string, opts: { assetId: string; contentType: string }) {
-    const exp = Date.now() + 30 * 60 * 1000;
+    const exp = Date.now() + 10 * 60 * 1000;
     return {
       url: `/api/uploads/${opts.assetId}?exp=${exp}&sig=${signUpload(opts.assetId, exp)}`,
       method: "PUT" as const,
@@ -63,6 +63,12 @@ export class LocalStorage implements StorageDriver {
 
   async directDownloadUrl() {
     return null;
+  }
+
+  async copy(fromKey: string, toKey: string) {
+    const dest = this.resolve(toKey);
+    await mkdir(path.dirname(dest), { recursive: true });
+    await copyFile(this.resolve(fromKey), dest);
   }
 
   async delete(key: string) {

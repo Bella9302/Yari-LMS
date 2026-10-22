@@ -5,7 +5,7 @@ import { audit } from "@/server/audit";
 import { assertCanEditCourse, NotFoundError } from "@/server/courses/access";
 import { getLearnerItem } from "@/server/courses/learner";
 import type { Actor } from "@/server/pii/users";
-import { AssessmentError } from "@/server/assessment/errors";
+import { AssessmentError, assertNotOwnWork } from "@/server/assessment/errors";
 import { drawQuestions, rescore, scoreAttempt, scoreQuestion } from "@/server/assessment/scoring";
 import { computeGrade, syncItemProgress } from "@/server/assessment/grades";
 import { notifyMarked } from "@/server/engagement/notifications";
@@ -159,12 +159,22 @@ export async function startAttempt(actor: Actor, itemId: string): Promise<string
   return attempt.id;
 }
 
-async function ownAttempt(actor: Actor, attemptId: string) {
+async function ownAttempt(actor: Actor, attemptId: string, opts: { writing?: boolean } = {}) {
   const attempt = await db.quizAttempt.findUnique({
     where: { id: attemptId },
-    include: { enrolment: { select: { userId: true } }, quiz: true },
+    include: {
+      enrolment: { select: { userId: true, status: true, course: { select: { status: true } } } },
+      quiz: true,
+    },
   });
   if (!attempt || attempt.enrolment.userId !== actor.id) throw new NotFoundError("Attempt not found");
+  // Answers can only change while the learner is still on a live course.
+  if (
+    opts.writing &&
+    (attempt.enrolment.status === "WITHDRAWN" || attempt.enrolment.course.status !== "PUBLISHED")
+  ) {
+    throw new AssessmentError("This quiz is closed.");
+  }
   return attempt;
 }
 
@@ -240,7 +250,7 @@ export async function saveAnswers(
   attemptId: string,
   raw: unknown,
 ): Promise<{ saved: boolean }> {
-  const attempt = await ownAttempt(actor, attemptId);
+  const attempt = await ownAttempt(actor, attemptId, { writing: true });
   if (attempt.status !== "IN_PROGRESS" || isExpired(attempt)) return { saved: false };
   const answers = cleanAnswers(attempt.questions as unknown as SnapshotQuestion[], raw);
   const { count } = await db.quizAttempt.updateMany({
@@ -251,7 +261,7 @@ export async function saveAnswers(
 }
 
 export async function submitAttempt(actor: Actor, attemptId: string, raw: unknown) {
-  const attempt = await ownAttempt(actor, attemptId);
+  const attempt = await ownAttempt(actor, attemptId, { writing: true });
   if (attempt.status !== "IN_PROGRESS") return attempt;
   // Past the deadline only the autosaved answers count.
   if (!isExpired(attempt)) await saveAnswers(actor, attemptId, raw);
@@ -309,7 +319,7 @@ export interface AttemptReview {
     type: SnapshotQuestion["type"];
     options: SnapshotQuestion["options"];
     answer: Answer | undefined;
-    points: number;
+    points: number | null;
     max: number;
     pending: boolean;
     correct?: unknown;
@@ -345,7 +355,8 @@ export async function getAttemptReview(actor: Actor, attemptId: string): Promise
         type: q.type,
         options: q.options,
         answer: answers[q.id],
-        points: awarded[q.id] ?? 0,
+        // Per-question points would show which answers were right, so they follow the same rule.
+        points: show ? (awarded[q.id] ?? 0) : null,
         max: q.points,
         pending: attempt.status === "NEEDS_MARKING" && auto.needsMarking,
         ...(show ? { correct: q.key, explanation: q.explanation } : {}),
@@ -373,6 +384,11 @@ export async function getAttemptForMarking(actor: Actor, attemptId: string) {
 /** A trainer confirms or adjusts points (typically for unmatched short answers) and finalises the attempt. */
 export async function markAttempt(actor: Actor, attemptId: string, awardedInput: Record<string, number>) {
   const attempt = await getAttemptForMarking(actor, attemptId);
+  const { userId } = await db.enrolment.findUniqueOrThrow({
+    where: { id: attempt.enrolmentId },
+    select: { userId: true },
+  });
+  assertNotOwnWork(actor, userId);
   if (attempt.status === "IN_PROGRESS")
     throw new AssessmentError("The learner hasn't submitted this attempt yet.");
   const questions = attempt.questions as unknown as SnapshotQuestion[];

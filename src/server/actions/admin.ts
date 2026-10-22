@@ -7,6 +7,8 @@ import { audit } from "@/server/audit";
 import { requireRole } from "@/server/guards";
 import { invalidateUserSessions } from "@/server/auth/session";
 import { formValues, type FormState } from "@/lib/form-state";
+import { friendly } from "@/server/actions/errors";
+import { eraseAccount } from "@/server/pii/data-rights";
 
 function slugify(name: string) {
   return name
@@ -71,6 +73,10 @@ export async function updateDataRequestAction(formData: FormData): Promise<void>
   const { user } = await requireRole("SUPER_ADMIN");
   const id = String(formData.get("id"));
   const status = z.enum(["IN_PROGRESS", "COMPLETED", "REJECTED"]).parse(formData.get("status"));
+  const request = await db.dataRequest.findUniqueOrThrow({ where: { id }, select: { type: true } });
+  // A deletion request is only "completed" by actually erasing the account (eraseAccountAction).
+  if (request.type === "DELETE" && status === "COMPLETED")
+    throw new Error("Use Erase account to complete a deletion request.");
   await db.dataRequest.update({
     where: { id },
     data: { status, handledById: user.id, completedAt: status === "IN_PROGRESS" ? null : new Date() },
@@ -83,4 +89,18 @@ export async function updateDataRequestAction(formData: FormData): Promise<void>
     meta: { status },
   });
   revalidatePath("/admin/data-requests");
+}
+
+export async function eraseAccountAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const { user } = await requireRole("SUPER_ADMIN");
+  if (String(formData.get("confirm") ?? "").trim() !== "ERASE") return { error: "Type ERASE to confirm." };
+  const request = await db.dataRequest.findUniqueOrThrow({ where: { id: String(formData.get("id")) } });
+  if (request.type !== "DELETE") return { error: "This isn't a deletion request." };
+  try {
+    await eraseAccount({ id: user.id, roles: user.roles }, request.userId, request.id);
+  } catch (err) {
+    return { error: friendly(err) };
+  }
+  revalidatePath("/admin/data-requests");
+  return { ok: true, message: "Account erased." };
 }

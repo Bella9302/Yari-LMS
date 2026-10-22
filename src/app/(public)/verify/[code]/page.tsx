@@ -18,7 +18,7 @@ export default async function VerifyResultPage({ params }: { params: Promise<{ c
   const { code } = await params;
   // Generous for people, slow for anyone trying to guess codes.
   const allowed = await consumeRateLimit(`verify:${hashIp(await clientIp()) ?? "unknown"}`, 60, 15 * 60_000);
-  const result = allowed ? await verifyCertificate(decodeURIComponent(code)) : null;
+  const result = allowed ? await verifyCertificate(code) : null;
 
   return (
     <section className="mx-auto max-w-3xl space-y-8 px-4 py-12 sm:px-6 sm:py-20">
@@ -40,7 +40,7 @@ export default async function VerifyResultPage({ params }: { params: Promise<{ c
           <p className="text-muted text-lg">
             No YARI Academy certificate has this code. Check it against the certificate and try again.
           </p>
-          <VerifyForm defaultValue={decodeURIComponent(code)} />
+          <VerifyForm defaultValue={code} />
         </>
       )}
 

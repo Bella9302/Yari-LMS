@@ -237,10 +237,22 @@ describe("uploads", () => {
       mime: "application/pdf",
       bytes: bytes.length,
     });
+    const incoming = (await db.asset.findUniqueOrThrow({ where: { id: assetId } })).storageKey;
     await put(assetId, bytes);
     const asset = await finishUpload(trainer, assetId);
     expect(asset.scanStatus).toBe("SKIPPED"); // no scanner in tests
     expect(asset.sha256).toHaveLength(64);
+    // What is served is a server-side copy; re-uploading to the original key changes nothing.
+    expect(asset.storageKey).not.toBe(incoming);
+    await (storage() as LocalStorage).write(
+      incoming,
+      Readable.from([Buffer.from("MZevil!!!!!!!!!")]),
+      bytes.length,
+    );
+    const served = await storage().read(asset.storageKey);
+    let content = "";
+    for await (const c of served) content += c;
+    expect(content).toBe(bytes.toString());
 
     await attachAssetToItem(trainer, pdfItem.id, assetId);
     await updateItem(trainer, pdfItem.id, {

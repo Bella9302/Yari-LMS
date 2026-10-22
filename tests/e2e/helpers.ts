@@ -21,6 +21,29 @@ export function fixtures(testInfo: TestInfo): ProjectFixtures & { password: stri
   return { ...all[testInfo.project.name], password: all.password, orgA: all.orgA };
 }
 
+export interface DemoFixtures {
+  orgId: string;
+  admin: { email: string; totpBase32: string };
+  trainer: { email: string; totpBase32: string };
+  manager: { email: string };
+  learner: { email: string };
+}
+
+export function demoFixtures(): DemoFixtures & { password: string } {
+  const all = JSON.parse(readFileSync(".e2e/fixtures.json", "utf8"));
+  return { ...all.demo, password: all.password };
+}
+
+/** Converts an authenticator key as shown to people (base32, spaced) to the base64 the helpers use. */
+export function base32ToBase64(key: string) {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let bits = "";
+  for (const c of key.replace(/\s+/g, "").toUpperCase())
+    bits += alphabet.indexOf(c).toString(2).padStart(5, "0");
+  const bytes = bits.match(/.{8}/g)!.map((b) => parseInt(b, 2));
+  return Buffer.from(bytes).toString("base64");
+}
+
 export function totp(base64Key: string) {
   return generateTOTP(new Uint8Array(Buffer.from(base64Key, "base64")), 30, 6);
 }

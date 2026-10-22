@@ -4,7 +4,7 @@ import { audit } from "@/server/audit";
 import { assertCanEditCourse, NotFoundError } from "@/server/courses/access";
 import { recomputeEnrolment } from "@/server/courses/learner";
 import type { Actor } from "@/server/pii/users";
-import { AssessmentError } from "@/server/assessment/errors";
+import { AssessmentError, assertNotOwnWork } from "@/server/assessment/errors";
 
 export type GradeState =
   /** Nothing attempted or handed in. */
@@ -176,6 +176,7 @@ export async function setGradeOverride(
   const enrolment = await db.enrolment.findUnique({ where: { id: enrolmentId } });
   if (!enrolment) throw new NotFoundError("Enrolment not found");
   await assertCanEditCourse(actor, enrolment.courseId);
+  assertNotOwnWork(actor, enrolment.userId);
   const item = await db.item.findFirst({
     where: { id: itemId, module: { courseId: enrolment.courseId }, type: { in: ["QUIZ", "ASSIGNMENT"] } },
   });

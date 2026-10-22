@@ -1,5 +1,7 @@
 "use server";
 
+import { safeNextPath } from "@/lib/form-state";
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -242,7 +244,7 @@ export async function saveMarkAction(_prev: FormState, formData: FormData): Prom
   revalidatePath(`${teach(courseId)}/marking`, "layout");
   revalidatePath(`${teach(courseId)}/gradebook`, "layout");
   const next = String(formData.get("nextHref") ?? "");
-  if (action !== "draft" && next) redirect(next);
+  if (action !== "draft" && next) redirect(safeNextPath(next, teach(courseId)));
   return {
     ok: true,
     message:

@@ -152,6 +152,23 @@ export async function finishUpload(actor: Actor, assetId: string) {
     return updated;
   };
 
+  if (asset.storageKey.startsWith("uploads/") && (await storage().size(asset.storageKey)) === null) {
+    throw new UploadError("The file didn't finish uploading. Try again.");
+  }
+  // Snapshot the upload to a key the browser was never given a URL for, and check and serve only
+  // that copy. A second PUT to the upload URL (still valid for a few minutes) can't change it.
+  if (asset.storageKey.startsWith("uploads/")) {
+    const incoming = asset.storageKey;
+    const stored = incoming.replace(/^uploads\//, "files/");
+    await storage().copy(incoming, stored);
+    await storage()
+      .delete(incoming)
+      .catch(() => {});
+    asset.storageKey = (
+      await db.asset.update({ where: { id: assetId }, data: { storageKey: stored } })
+    ).storageKey;
+  }
+
   const size = await storage().size(asset.storageKey);
   if (size === null) throw new UploadError("The file didn't finish uploading. Try again.");
   if (size !== asset.bytes) return reject("Size doesn't match the declared size");

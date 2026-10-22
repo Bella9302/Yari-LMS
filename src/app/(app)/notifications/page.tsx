@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Award, CheckCircle2, FileBadge, Inbox, Megaphone, MessagesSquare } from "lucide-react";
+import { Award, Building2, CheckCircle2, FileBadge, Inbox, Megaphone, MessagesSquare } from "lucide-react";
 import { requireUser } from "@/server/guards";
 import { listNotifications } from "@/server/engagement/notifications";
 import { markAllReadAction } from "@/server/actions/engagement";
@@ -19,6 +19,7 @@ const ICON = {
   BADGE: Award,
   CERTIFICATE: FileBadge,
   ENQUIRY: Inbox,
+  COMPANY_INVITE: Building2,
 };
 
 export default async function NotificationsPage() {

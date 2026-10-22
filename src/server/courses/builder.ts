@@ -1,4 +1,5 @@
 import "server-only";
+import { assertActiveOrg } from "@/server/org-status";
 import type {
   CourseCategory,
   CourseStatus,
@@ -700,6 +701,7 @@ export async function enrolLearners(
   else if (opts.organizationId && managedOrgIds(actor.roles).includes(opts.organizationId)) {
     source = "CLIENT_MANAGER";
     orgForAll = opts.organizationId;
+    await assertActiveOrg(orgForAll);
     if (course.status !== "PUBLISHED" || course.visibility !== "PUBLIC")
       throw new NotFoundError("Course not found");
     const members = await db.orgMembership.count({
@@ -727,6 +729,10 @@ export async function enrolLearners(
       where: { userId_courseId: { userId: learner.id, courseId } },
     });
     if (existing && existing.status !== "WITHDRAWN") continue;
+    // A withdrawn enrolment keeps its history (progress, results, certificate). A company may
+    // not pick up history that was built while the learner was with another company; only a
+    // Super Admin can move it.
+    if (existing && source === "CLIENT_MANAGER" && existing.organizationId !== organizationId) continue;
     const enrolment = existing
       ? await db.enrolment.update({
           where: { id: existing.id },

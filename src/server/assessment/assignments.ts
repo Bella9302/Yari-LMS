@@ -6,7 +6,7 @@ import { assertCanEditCourse, NotFoundError } from "@/server/courses/access";
 import { getLearnerItem } from "@/server/courses/learner";
 import { dec } from "@/server/pii/fields";
 import type { Actor } from "@/server/pii/users";
-import { AssessmentError } from "@/server/assessment/errors";
+import { AssessmentError, assertNotOwnWork } from "@/server/assessment/errors";
 import { computeGrade, syncItemProgress, type Grade } from "@/server/assessment/grades";
 import { rubricScore } from "@/server/assessment/scoring";
 import { getRubric } from "@/server/assessment/authoring";
@@ -321,10 +321,16 @@ export async function saveMark(actor: Actor, submissionId: string, input: MarkIn
     include: {
       assignment: { include: { item: { select: { module: { select: { courseId: true } } } } } },
       mark: true,
+      enrolment: { select: { userId: true } },
     },
   });
   if (!submission) throw new NotFoundError("Submission not found");
   await assertCanEditCourse(actor, submission.assignment.item.module.courseId);
+  assertNotOwnWork(actor, submission.enrolment.userId);
+  // Released marks are visible to the learner at once, so a "draft" can't silently overwrite one.
+  if (input.action === "draft" && submission.mark?.status === "RELEASED") {
+    throw new AssessmentError("This mark is already released. Use “Release & next” to change it.");
+  }
 
   let score = input.score;
   const selections: Record<string, string> = {};

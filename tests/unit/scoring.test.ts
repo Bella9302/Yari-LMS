@@ -122,6 +122,19 @@ describe("drawing questions", () => {
     expect(picked[0]!.options.choices!.map((c) => c.id)).toEqual(["a", "b", "c"]);
   });
 
+  it("always shuffles matching answers, even when the quiz isn't shuffled", () => {
+    const right = ["r1", "r2", "r3", "r4"].map((id) => ({ id, text: id }));
+    const matching = q({
+      id: "m",
+      type: "MATCHING",
+      options: { left: right.map((r, i) => ({ id: `l${i}`, text: `l${i}` })), right },
+      key: { pairs: {} },
+    });
+    // A rand that always picks index 0 turns Fisher–Yates into a rotation, never the identity.
+    const [drawn] = drawQuestions([{ questions: [matching], drawCount: null }], { shuffle: false }, () => 0);
+    expect(drawn!.options.right!.map((r) => r.id)).not.toEqual(["r1", "r2", "r3", "r4"]);
+  });
+
   it("doesn't draw the same question twice when two sections share a bank", () => {
     const shared = bank("s", 5);
     const picked = drawQuestions(

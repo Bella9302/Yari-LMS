@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { requireUser } from "@/server/guards";
-import { updateProfile } from "@/server/pii/users";
+import { respondToCompanyInvitation, updateProfile } from "@/server/pii/users";
 import { formValues, type FormState } from "@/lib/form-state";
 import { PRIVACY_VERSION } from "@/lib/policies";
 
@@ -88,4 +88,14 @@ export async function createDataRequestAction(formData: FormData): Promise<void>
     });
   }
   revalidatePath("/account/privacy");
+}
+
+export async function respondCompanyInvitationAction(formData: FormData): Promise<void> {
+  const { user } = await requireUser();
+  await respondToCompanyInvitation(
+    { id: user.id, roles: user.roles },
+    String(formData.get("id")),
+    formData.get("accept") === "true",
+  );
+  revalidatePath("/", "layout");
 }

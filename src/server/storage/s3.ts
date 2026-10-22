@@ -1,6 +1,7 @@
 import "server-only";
 import { Readable } from "node:stream";
 import {
+  CopyObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
@@ -41,9 +42,20 @@ export class S3Storage implements StorageDriver {
         ContentType: opts.contentType,
         ContentLength: opts.bytes,
       }),
-      { expiresIn: 30 * 60 },
+      // Short-lived: the URL only needs to last while the browser sends the file.
+      { expiresIn: 10 * 60 },
     );
     return { url, method: "PUT" as const, headers: { "Content-Type": opts.contentType } };
+  }
+
+  async copy(fromKey: string, toKey: string) {
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        Key: toKey,
+        CopySource: `${this.bucket}/${fromKey.split("/").map(encodeURIComponent).join("/")}`,
+      }),
+    );
   }
 
   async size(key: string) {

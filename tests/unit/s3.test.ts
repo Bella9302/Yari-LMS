@@ -17,7 +17,7 @@ describe("S3 storage (AWS)", () => {
     const url = new URL(t.url);
     expect(url.host).toBe("yari-academy-files.s3.af-south-1.amazonaws.com");
     expect(url.pathname).toBe("/uploads/2026-10/abc");
-    expect(url.searchParams.get("X-Amz-Expires")).toBe("1800");
+    expect(url.searchParams.get("X-Amz-Expires")).toBe("600");
     expect(url.searchParams.get("X-Amz-SignedHeaders")).toContain("content-length");
     expect(t.method).toBe("PUT");
   });

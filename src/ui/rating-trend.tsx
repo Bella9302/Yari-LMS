@@ -165,11 +165,7 @@ export function RatingTrend({ points, min }: { points: TrendPoint[]; min: number
             </p>
             <p className="text-muted whitespace-nowrap">
               {monthLabel(a.month, true)} ·{" "}
-              {a.overall === null
-                ? a.count
-                  ? `fewer than ${min} ratings`
-                  : "no ratings"
-                : `${a.count} ratings`}
+              {a.overall === null ? `fewer than ${min} ratings` : `${a.count} ratings`}
             </p>
           </div>
         )}

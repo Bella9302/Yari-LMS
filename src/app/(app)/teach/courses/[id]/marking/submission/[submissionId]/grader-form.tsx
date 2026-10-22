@@ -181,9 +181,11 @@ export function GraderForm({
         <SubmitButton name="intent" value="release" disabled={!complete} pendingLabel="Releasing…">
           Release &amp; next
         </SubmitButton>
-        <SubmitButton name="intent" value="draft" variant="secondary" pendingLabel="Saving…">
-          Save draft
-        </SubmitButton>
+        {mark?.status !== "RELEASED" && (
+          <SubmitButton name="intent" value="draft" variant="secondary" pendingLabel="Saving…">
+            Save draft
+          </SubmitButton>
+        )}
         <SubmitButton
           name="intent"
           value="return"

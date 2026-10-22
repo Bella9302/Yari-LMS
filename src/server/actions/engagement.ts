@@ -8,7 +8,12 @@ import { deleteAnnouncement, postAnnouncement } from "@/server/engagement/announ
 import { createThread, deletePost, editPost, moderateThread, reply } from "@/server/engagement/discussions";
 import { markRead } from "@/server/engagement/notifications";
 import { CRITERIA, submitRating } from "@/server/engagement/ratings";
-import type { FormState } from "@/lib/form-state";
+import { safeNextPath, type FormState } from "@/lib/form-state";
+
+/** The page to refresh after an action: a same-site path only, never a full URL. */
+function backPath(formData: FormData) {
+  return safeNextPath(String(formData.get("back") ?? ""), "/").split(/[?#]/)[0]!;
+}
 
 async function actor() {
   const { user } = await requireUser();
@@ -46,7 +51,7 @@ export async function postAnnouncementAction(_prev: FormState, formData: FormDat
 
 export async function deleteAnnouncementAction(formData: FormData): Promise<void> {
   await deleteAnnouncement(await actor(), String(formData.get("id")));
-  revalidatePath(String(formData.get("back") ?? "/"));
+  revalidatePath(backPath(formData));
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +92,7 @@ export async function replyAction(_prev: FormState, formData: FormData): Promise
 }
 
 export async function editPostAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const path = String(formData.get("back"));
+  const path = backPath(formData);
   try {
     await editPost(await actor(), String(formData.get("postId")), String(formData.get("body") ?? ""));
   } catch (err) {
@@ -99,7 +104,7 @@ export async function editPostAction(_prev: FormState, formData: FormData): Prom
 
 export async function deletePostAction(formData: FormData): Promise<void> {
   await deletePost(await actor(), String(formData.get("postId")));
-  revalidatePath(String(formData.get("back")));
+  revalidatePath(backPath(formData));
 }
 
 export async function moderateThreadAction(formData: FormData): Promise<void> {
@@ -107,7 +112,7 @@ export async function moderateThreadAction(formData: FormData): Promise<void> {
   if (formData.has("pinned")) change.pinned = formData.get("pinned") === "true";
   if (formData.has("locked")) change.locked = formData.get("locked") === "true";
   await moderateThread(await actor(), String(formData.get("threadId")), change);
-  revalidatePath(String(formData.get("back")));
+  revalidatePath(backPath(formData));
 }
 
 // ---------------------------------------------------------------------------

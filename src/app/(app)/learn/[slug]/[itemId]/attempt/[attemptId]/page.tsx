@@ -81,7 +81,7 @@ export default async function AttemptPage({
             <div className="mb-3 flex items-center justify-between">
               <span className="eyebrow">Question {i + 1}</span>
               <span className="font-mono text-sm">
-                {q.pending ? "being checked" : `${q.points} / ${q.max}`}
+                {q.pending ? "being checked" : q.points === null ? `${q.max} pts` : `${q.points} / ${q.max}`}
               </span>
             </div>
             <AnswerSummary

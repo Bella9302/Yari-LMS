@@ -7,6 +7,8 @@ import type { Role, UserStatus } from "@/generated/prisma/client";
 
 const SESSION_DAYS = 14;
 const REFRESH_WHEN_DAYS_LEFT = 7;
+/** Hard limits from sign-in, however active the session is: shorter for staff accounts. */
+const MAX_SESSION_DAYS = { staff: 7, other: 30 } as const;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const SESSION_COOKIE = process.env.NODE_ENV === "production" ? "__Host-yari_session" : "yari_session";
@@ -28,6 +30,12 @@ export interface ValidSession {
   twoFactorVerified: boolean;
   expiresAt: Date;
   user: SessionUser;
+}
+
+/** The moment a session must end regardless of activity. */
+export function sessionHardLimit(createdAt: Date, roles: { role: Role }[]): Date {
+  const staff = roles.some((r) => r.role === "SUPER_ADMIN" || r.role === "TRAINER");
+  return new Date(createdAt.getTime() + (staff ? MAX_SESSION_DAYS.staff : MAX_SESSION_DAYS.other) * DAY_MS);
 }
 
 export async function createSession(
@@ -65,13 +73,18 @@ export async function validateSessionToken(token: string): Promise<ValidSession 
     },
   });
   if (!row) return null;
-  if (row.expiresAt.getTime() <= Date.now() || row.user.status !== "ACTIVE") {
+  const hardLimit = sessionHardLimit(row.createdAt, row.user.roles);
+  if (
+    row.expiresAt.getTime() <= Date.now() ||
+    hardLimit.getTime() <= Date.now() ||
+    row.user.status !== "ACTIVE"
+  ) {
     await db.authSession.delete({ where: { id: sessionId } }).catch(() => {});
     return null;
   }
   let expiresAt = row.expiresAt;
   if (expiresAt.getTime() - Date.now() < REFRESH_WHEN_DAYS_LEFT * DAY_MS) {
-    expiresAt = new Date(Date.now() + SESSION_DAYS * DAY_MS);
+    expiresAt = new Date(Math.min(Date.now() + SESSION_DAYS * DAY_MS, hardLimit.getTime()));
     await db.authSession.update({ where: { id: sessionId }, data: { expiresAt } });
   }
   return {

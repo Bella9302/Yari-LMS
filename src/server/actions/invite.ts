@@ -1,5 +1,9 @@
 "use server";
 
+import { notify } from "@/server/engagement/notifications";
+
+import { db } from "@/server/db";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { env } from "@/server/env";
@@ -45,6 +49,23 @@ export async function inviteAction(_prev: FormState, formData: FormData): Promis
           expiresDays: INVITE_DAYS,
         }),
       );
+    } else if (result.kind === "pending-acceptance") {
+      const org = await db.organization.findUniqueOrThrow({
+        where: { id: parsed.data.organizationId! },
+        select: { name: true },
+      });
+      await notify([result.userId], {
+        type: "COMPANY_INVITE",
+        title: `${org.name} would like to add you to its team`,
+        href: "/account",
+      });
+      const url = result.token ? `${env().APP_URL}/invite/${result.token}` : `${env().APP_URL}/account`;
+      await sendEmail({
+        to: parsed.data.email,
+        subject: `${org.name} would like to add you on YARI Academy`,
+        text: `${org.name} would like to add you to its team on YARI Academy, so it can enrol you on training and see your progress on courses it arranges.\n\nNothing is shared until you accept. Sign in to accept or decline: ${url}`,
+        html: `<p>${escapeHtml(org.name)} would like to add you to its team on YARI Academy, so it can enrol you on training and see your progress on courses it arranges.</p><p>Nothing is shared until you accept. <a href="${url}">Sign in to accept or decline</a>.</p>`,
+      });
     } else {
       await sendEmail({
         to: parsed.data.email,

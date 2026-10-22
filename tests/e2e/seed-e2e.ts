@@ -7,6 +7,7 @@ import { aad, encryptField } from "@/server/crypto/field-encryption";
 import { issueToken } from "@/server/pii/users";
 import { ensureTemplates } from "@/server/courses/templates";
 import { createOrg, createUser } from "../support/factories";
+import { seedDemo } from "@/server/demo/seed";
 
 const PASSWORD = "e2e passphrase for testing";
 
@@ -159,6 +160,20 @@ async function main() {
         email: invitee.email,
         idNumber: project === "mobile" ? "8001015009087" : "9202204720083",
       },
+    };
+  }
+
+  // The full demo data set (Phase 7), used by the accessibility sweep.
+  const demo = await seedDemo({ password: PASSWORD });
+  if (demo) {
+    const find = (role: string) => demo.people.find((p) => p.role === role)!;
+    const marker = await db.platformSetting.findUniqueOrThrow({ where: { key: "demo" } });
+    fixtures.demo = {
+      orgId: (marker.value as { orgId: string }).orgId,
+      admin: { email: find("Super Admin").email, totpBase32: find("Super Admin").totp!.manualKey },
+      trainer: { email: find("Trainer (SHE)").email, totpBase32: find("Trainer (SHE)").totp!.manualKey },
+      manager: { email: find("Client Manager").email },
+      learner: { email: demo.people.find((p) => p.name === "Thandiwe Mokoena")!.email },
     };
   }
 

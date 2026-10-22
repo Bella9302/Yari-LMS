@@ -4,7 +4,8 @@ import { db } from "@/server/db";
 import { requireUser } from "@/server/guards";
 import { createDataRequestAction, setMarketingConsentAction } from "@/server/actions/account";
 import { formatDate } from "@/lib/format";
-import { Button } from "@/ui/button";
+import { Button, buttonClasses } from "@/ui/button";
+import { exportAvailableUntil } from "@/server/pii/data-rights";
 import { Notice, Tag } from "@/ui/primitives";
 
 export const metadata: Metadata = { title: "Privacy" };
@@ -17,9 +18,10 @@ const CONSENT_LABELS = {
 
 export default async function AccountPrivacyPage() {
   const { user } = await requireUser();
-  const [consents, requests] = await Promise.all([
+  const [consents, requests, exportUntil] = await Promise.all([
     db.consent.findMany({ where: { userId: user.id }, orderBy: { grantedAt: "desc" } }),
     db.dataRequest.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" } }),
+    exportAvailableUntil(user.id),
   ]);
   const marketingOn = consents.some((c) => c.purpose === "MARKETING" && !c.withdrawnAt);
   const openRequest = (type: "EXPORT" | "DELETE") =>
@@ -68,6 +70,17 @@ export default async function AccountPrivacyPage() {
           Under POPIA you can ask for a copy of what we hold about you, or ask us to delete your account. We
           respond within 30 days.
         </p>
+        {exportUntil && (
+          <Notice tone="success" title="Your copy is ready" className="mt-6">
+            <p>
+              Download it as a JSON file (readable in any text editor). The link works until{" "}
+              {formatDate(exportUntil)}.
+            </p>
+            <a href="/account/privacy/export" className={buttonClasses("secondary", "md", "mt-3")}>
+              Download my data
+            </a>
+          </Notice>
+        )}
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <RequestCard
             type="EXPORT"

@@ -166,3 +166,13 @@ describe("file type sniffing", () => {
     expect(contentMatchesType("application/x-msdownload", Buffer.from("MZ"))).toBe(false);
   });
 });
+
+describe("rich text limits", () => {
+  it("drops absurdly deep nesting instead of overflowing the stack", () => {
+    let node: Record<string, unknown> = { type: "text", text: "deep" };
+    for (let i = 0; i < 50_000; i++) node = { type: i % 2 ? "blockquote" : "paragraph", content: [node] };
+    const out = sanitizeRichText({ type: "doc", content: [node] });
+    expect(out.type).toBe("doc");
+    expect(JSON.stringify(out)).not.toContain("deep");
+  });
+});

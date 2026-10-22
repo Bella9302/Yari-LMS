@@ -421,3 +421,40 @@ src/
 
 - **Contact details:** the public email and phone are blank until set in Settings; I didn't guess them.
 - **Course pages:** only courses marked _Public_ in course Settings appear in the catalogue. The two templates are not listed. Phase 7's demo data will publish the two demo courses.
+
+## 13. Phase 7 (Hardening): what was done
+
+- **Security review:** two independent reviews (access control, and web/input/crypto). Every finding was verified against the code, fixed and covered by a regression test. **1 high, 8 medium, 8 low.** Details and the deployment checklist are in `docs/SECURITY.md`.
+  - **High:** a Client Manager could attach an existing account to their company and see its details. There is now a consent step: companies send an invitation the person must accept on their Account page.
+  - **Content-Security-Policy:** added.
+  - **Sessions:** absolute limits (7 days for staff, 30 for others).
+  - **Uploads:** checked and served from a server-side copy.
+  - **Rate limits:** robust behind a proxy (`TRUSTED_PROXY_HOPS`).
+  - **Trainer ratings:** released in batches of 3, so averages can't be subtracted to find one person's scores.
+  - `npm audit`: 0 vulnerabilities.
+- **POPIA:**
+  - **Data access:** an admin approves the request, then the person downloads a full JSON copy while signed in, for 7 days. It includes who viewed or changed their details.
+  - **Erasure:** an admin anonymises the account. Identity, written work, files, feedback and posts are removed and certificates withdrawn. Anonymous scores and completion numbers are kept.
+  - **Checklist:** the eight conditions are mapped in `docs/POPIA.md`, with the steps YARI GROUP must take before launch (Information Officer, PAIA manual, operator agreements, breach procedure, retention period, cross-border email).
+- **Accessibility:** a new axe sweep (`tests/e2e/a11y.spec.ts`) visits about 60 pages as each role, on the demo data:
+  - **Themes:** dark mode at 360px and light mode on desktop (the other specs cover light mode at both sizes).
+  - **Keyboard:** a skip-link check.
+  - **Found and fixed:** invalid definition-list markup on the trainer ratings page.
+  - **Result:** all pages pass WCAG 2.1 A/AA automated checks with no sideways scrolling.
+- **Low-end phones:** measured on the production build at 360px with Chrome's "Slow 4G" network and a 4× slower CPU, cache disabled:
+
+  | Page              | Transferred | JavaScript | First paint | Loaded |
+  | ----------------- | ----------- | ---------- | ----------- | ------ |
+  | Landing page      | 278 KB      | 155 KB     | 1.8 s       | 3.2 s  |
+  | Course catalogue  | 262 KB      | 149 KB     | 1.6 s       | 3.0 s  |
+  | Learner dashboard | 268 KB      | 155 KB     | 1.6 s       | 3.0 s  |
+  | Course item       | 271 KB      | 163 KB     | 1.6 s       | 3.0 s  |
+
+  Heavy libraries (rich-text editor, drag and drop, PDF) never reach learner pages. Fonts are about 84 KB and cached long-term. The app is now installable to the home screen (web app manifest).
+
+- **Demo data:** `npm run db:seed:demo` (`src/server/demo/seed.ts`). Everything in it is fictional, and email addresses use `.invalid` so nothing can be sent. It builds:
+  - **Courses:** "SHE Representative Practical Training" and "AI Tools for the Workplace", published and public, with quizzes (all five question types), a rubric-marked inspection report, sessions and at-risk rules.
+  - **People:** 1 Super Admin, 2 Trainers (both with 2FA keys printed) and a Client Manager for "Ubuntu Build & Civil (Demo)". There are 10 learners, with fictional but valid-format ID numbers.
+  - **Activity:** realistic progress, 5 certificates, a marking queue, a failed quiz attempt, an at-risk learner, ratings over time, announcements, a discussion and 2 enquiries.
+
+  It runs once per database and refuses in production unless `ALLOW_DEMO_SEED=yes`.

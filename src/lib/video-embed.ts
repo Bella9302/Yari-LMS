@@ -28,6 +28,7 @@ export function parseVideoEmbed(raw: string): VideoEmbed | null {
     const id = url.pathname.match(/(?:^|\/)(\d{5,12})(?:\/|$)/)?.[1];
     if (!id) return null;
     const hash = url.pathname.match(/\/\d+\/([a-f0-9]{6,})/)?.[1] ?? url.searchParams.get("h");
+    if (hash && !/^[a-f0-9]{6,40}$/.test(hash)) return null;
     return {
       provider: "vimeo",
       embedUrl: `https://player.vimeo.com/video/${id}?dnt=1${hash ? `&h=${hash}` : ""}`,

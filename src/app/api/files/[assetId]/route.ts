@@ -37,7 +37,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ asse
     "X-Content-Type-Options": "nosniff",
     // Downloads get a sandbox so they can never run as a page on our origin. (Inline types are
     // limited to PDF/image/video and verified by content; Chrome won't render PDFs when sandboxed.)
-    ...(inline ? {} : { "Content-Security-Policy": "sandbox; default-src 'none'" }),
+    // Inline files (PDFs in the item viewer) may only be framed by our own pages.
+    "Content-Security-Policy": inline ? "frame-ancestors 'self'" : "sandbox; default-src 'none'",
   };
 
   const range = request.headers.get("range")?.match(/^bytes=(\d*)-(\d*)$/);

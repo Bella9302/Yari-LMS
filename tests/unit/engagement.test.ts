@@ -74,7 +74,8 @@ describe("rating summaries", () => {
     const trend = monthlyTrend([r(5), r(5), r(5), r(4, new Date("2026-09-03"))], now);
     expect(trend).toHaveLength(12);
     expect(trend.at(-1)).toEqual({ month: "2026-10", count: 3, overall: 4.3 });
-    expect(trend.at(-2)).toEqual({ month: "2026-09", count: 1, overall: null });
+    // Counts are released in batches too, so a lone rating isn't even counted yet.
+    expect(trend.at(-2)).toEqual({ month: "2026-09", count: 0, overall: null });
   });
 });
 
@@ -122,5 +123,16 @@ describe("announcement email text", () => {
       ],
     };
     expect(richTextToPlain(doc)).toBe("Site visit moved.\n\n• Bring PPE");
+  });
+});
+
+describe("rating batches", () => {
+  it("releases ratings to trainers only in whole batches of three, oldest first", async () => {
+    const { inBatches } = await import("@/server/engagement/ratings");
+    const at = (d: number) => ({ createdAt: new Date(2026, 0, d) });
+    const rows = [at(5), at(1), at(3), at(2), at(4)];
+    expect(inBatches(rows).map((r) => r.createdAt.getDate())).toEqual([1, 2, 3]);
+    expect(inBatches(rows.slice(0, 2))).toEqual([]);
+    expect(inBatches([...rows, at(6)])).toHaveLength(6);
   });
 });

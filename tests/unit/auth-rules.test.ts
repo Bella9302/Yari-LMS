@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateHOTP } from "@oslojs/otp";
 import { matchingStep } from "@/server/auth/totp";
-import { lockoutUntil } from "@/server/auth/rate-limit";
+import { LOGIN_LIMITS, loginThrottled } from "@/server/auth/rate-limit";
 import { authStage, canAccessOrg, orgScope } from "@/server/rbac";
 import { assertCanInvite, PermissionError } from "@/server/pii/users";
 import { safeNextPath } from "@/lib/form-state";
@@ -86,13 +86,13 @@ describe("TOTP", () => {
   });
 });
 
-describe("lockout", () => {
-  it("starts after five failures and doubles, capped at a day", () => {
-    const now = 0;
-    expect(lockoutUntil(4, now)).toBeNull();
-    expect(lockoutUntil(5, now)!.getTime()).toBe(15 * 60_000);
-    expect(lockoutUntil(6, now)!.getTime()).toBe(30 * 60_000);
-    expect(lockoutUntil(50, now)!.getTime()).toBe(24 * 60 * 60_000);
+describe("sign-in throttling", () => {
+  it("stops guessing one email from one connection, and from everywhere, without a long lockout", () => {
+    expect(loginThrottled({ perConnection: 4, perEmail: 4 })).toBe(false);
+    expect(loginThrottled({ perConnection: 5, perEmail: 5 })).toBe(true);
+    expect(loginThrottled({ perConnection: 0, perEmail: 29 })).toBe(false);
+    expect(loginThrottled({ perConnection: 0, perEmail: 30 })).toBe(true);
+    expect(LOGIN_LIMITS.perEmail.windowMs).toBeLessThanOrEqual(60 * 60_000);
   });
 });
 
@@ -103,6 +103,11 @@ describe("redirect safety", () => {
     expect(safeNextPath("//evil.example")).toBe("/dashboard");
     expect(safeNextPath("/\\evil.example")).toBe("/dashboard");
     expect(safeNextPath(undefined)).toBe("/dashboard");
+    // Browsers strip tabs/newlines, which would turn these into "//evil.example".
+    expect(safeNextPath("/\t/evil.example")).toBe("/dashboard");
+    expect(safeNextPath("/\n/evil.example")).toBe("/dashboard");
+    expect(safeNextPath("/%09/evil.example")).toBe("/%09/evil.example"); // still a local path once encoded
+    expect(safeNextPath("/learn/she?tab=1#top")).toBe("/learn/she?tab=1#top");
   });
 });
 
@@ -110,5 +115,28 @@ describe("readable codes", () => {
   it("uses an unambiguous alphabet", () => {
     for (let i = 0; i < 200; i++)
       expect(generateReadableCode(2, 5)).toMatch(/^[2-9A-HJKMNP-TV-Z]{5}-[2-9A-HJKMNP-TV-Z]{5}$/);
+  });
+});
+
+describe("client IP behind a proxy", () => {
+  it("uses the entry our proxy appended, not what the client sent", async () => {
+    const { clientIpFrom } = await import("@/server/audit");
+    // Client forged "1.2.3.4"; our nginx appended the real address.
+    expect(clientIpFrom("1.2.3.4, 198.51.100.7", 1)).toBe("198.51.100.7");
+    expect(clientIpFrom("1.2.3.4, 198.51.100.7, 10.0.0.2", 2)).toBe("198.51.100.7");
+    expect(clientIpFrom("198.51.100.7", 1)).toBe("198.51.100.7");
+    expect(clientIpFrom("1.2.3.4", 0)).toBeNull();
+    expect(clientIpFrom(null, 1)).toBeNull();
+  });
+});
+
+describe("session lifetime", () => {
+  it("ends staff sessions after 7 days and others after 30, however active", async () => {
+    const { sessionHardLimit } = await import("@/server/auth/session");
+    const t0 = new Date("2026-10-01T00:00:00Z");
+    const days = (d: Date) => (d.getTime() - t0.getTime()) / 86_400_000;
+    expect(days(sessionHardLimit(t0, [{ role: "LEARNER" }]))).toBe(30);
+    expect(days(sessionHardLimit(t0, [{ role: "LEARNER" }, { role: "TRAINER" }]))).toBe(7);
+    expect(days(sessionHardLimit(t0, [{ role: "SUPER_ADMIN" }]))).toBe(7);
   });
 });

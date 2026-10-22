@@ -108,6 +108,8 @@ model User {
   certificates        Certificate[]      @relation("CertificateHolder")
   certificatesRevoked Certificate[]      @relation("CertificateRevoker")
   enquiriesHandled    Enquiry[]          @relation("EnquiryHandler")
+  orgInvitations      OrgInvitation[]    @relation("OrgInvitationUser")
+  orgInvitesSent      OrgInvitation[]    @relation("OrgInvitationSender")
 }
 
 model UserProfile {
@@ -140,16 +142,17 @@ model RoleAssignment {
 }
 
 model Organization {
-  id         String             @id @default(cuid(2))
-  name       String
-  slug       String             @unique
-  regNumber  String?
-  status     OrganizationStatus @default(ACTIVE)
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  members    OrgMembership[]
-  roles      RoleAssignment[]
-  enrolments Enrolment[]
+  id          String             @id @default(cuid(2))
+  name        String
+  slug        String             @unique
+  regNumber   String?
+  status      OrganizationStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  members     OrgMembership[]
+  roles       RoleAssignment[]
+  enrolments  Enrolment[]
+  invitations OrgInvitation[]
 }
 
 model OrgMembership {
@@ -900,6 +903,7 @@ enum NotificationType {
   BADGE
   CERTIFICATE
   ENQUIRY
+  COMPANY_INVITE
 }
 
 // A learner's rating of one trainer, for a course (sessionId null) or a session.
@@ -1069,4 +1073,21 @@ model Enquiry {
   updatedAt   DateTime        @updatedAt
 
   @@index([status, createdAt])
+}
+
+// A company's request to add someone who already has an account. Nothing about that person is
+// visible to the company, and no role or membership is granted, until they accept.
+model OrgInvitation {
+  id             String       @id @default(cuid(2))
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation("OrgInvitationUser", fields: [userId], references: [id], onDelete: Cascade)
+  invitedById    String?
+  invitedBy      User?        @relation("OrgInvitationSender", fields: [invitedById], references: [id], onDelete: SetNull)
+  department     String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
 }

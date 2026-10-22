@@ -33,6 +33,12 @@ const schema = z.object({
 
   // ClamAV daemon for virus scanning uploads. Required in production.
   CLAMAV_HOST: z.string().optional(),
+  /**
+   * How many reverse proxies we run in front of the app (e.g. 1 for Caddy/nginx, 2 for a CDN +
+   * nginx). The client IP is the X-Forwarded-For entry that many places from the right; entries
+   * further left are supplied by the client and can't be trusted. 0 = no proxy: ignore the header.
+   */
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
   CLAMAV_PORT: z.coerce.number().int().default(3310),
   // Test-only escape hatch for running a production build without ClamAV (E2E). Never set in a real deployment.
   ALLOW_UNSCANNED_UPLOADS: z.enum(["true", "false"]).default("false"),

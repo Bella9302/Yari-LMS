@@ -47,10 +47,18 @@ export function isSafeHref(href: unknown): href is string {
   }
 }
 
-/** Returns a cleaned copy, dropping anything not on the whitelist. */
+/** Real documents nest a few levels (list > item > paragraph > text); this is generous. */
+const MAX_DEPTH = 24;
+const MAX_NODES = 20_000;
+
+/**
+ * Returns a cleaned copy, dropping anything not on the whitelist. Depth and size are capped so a
+ * hand-crafted document can't overflow the stack here or on every later render.
+ */
 export function sanitizeRichText(input: unknown): RichNode {
-  const clean = (node: unknown): RichNode | null => {
-    if (!node || typeof node !== "object") return null;
+  let budget = MAX_NODES;
+  const clean = (node: unknown, depth = 0): RichNode | null => {
+    if (!node || typeof node !== "object" || depth > MAX_DEPTH || --budget < 0) return null;
     const n = node as RichNode;
     if (!NODES.has(n.type)) return null;
     const out: RichNode = { type: n.type };
@@ -68,7 +76,8 @@ export function sanitizeRichText(input: unknown): RichNode {
     }
     if (n.type === "heading") out.attrs = { level: n.attrs?.level === 3 ? 3 : 2 };
     if (n.type === "orderedList" && typeof n.attrs?.start === "number") out.attrs = { start: n.attrs.start };
-    if (Array.isArray(n.content)) out.content = n.content.map(clean).filter((c): c is RichNode => c !== null);
+    if (Array.isArray(n.content))
+      out.content = n.content.map((c) => clean(c, depth + 1)).filter((c): c is RichNode => c !== null);
     return out;
   };
   const doc = clean(input);
