@@ -1,5 +1,4 @@
 import type { MetadataRoute } from "next";
-import { env } from "@/server/env";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -19,6 +18,7 @@ export default function robots(): MetadataRoute.Robots {
         "/check-in",
       ],
     },
-    sitemap: `${env().APP_URL}/sitemap.xml`,
+    // Read directly: robots.txt is built ahead of time, before secrets exist.
+    sitemap: `${process.env.APP_URL ?? "http://localhost:3000"}/sitemap.xml`,
   };
 }

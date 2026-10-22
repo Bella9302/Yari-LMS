@@ -52,4 +52,4 @@ Each finding was checked against the code before fixing. Regression tests are in
 - [ ] **File storage:** S3 bucket private, CORS PUT only from `APP_URL`, versioning on, in `af-south-1`.
 - [ ] **Nightly job:** schedule `npm run jobs:nightly` (02:00 SAST).
 - [ ] **Backups:** encrypted database backups, with a restore tested.
-- [ ] **Demo data:** never run `db:seed:demo` on the live server. It refuses unless `ALLOW_DEMO_SEED=yes`.
+- [ ] **Demo data:** never run `db:seed:demo` on the live server. It refuses unless the server runs with `DEMO_MODE=true`, which also shows a "demonstration site" banner and stops emails. Never set `DEMO_MODE` on the live site.

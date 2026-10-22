@@ -1,4 +1,4 @@
-# Local development database. Production deployment (app, worker, ClamAV, Caddy) is added in Phase 7.
+# Local development database only. For a server, see docker-compose.prod.yml and docs/DEPLOY.md.
 services:
   postgres:
     image: postgres:16

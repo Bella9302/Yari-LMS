@@ -457,4 +457,4 @@ src/
   - **People:** 1 Super Admin, 2 Trainers (both with 2FA keys printed) and a Client Manager for "Ubuntu Build & Civil (Demo)". There are 10 learners, with fictional but valid-format ID numbers.
   - **Activity:** realistic progress, 5 certificates, a marking queue, a failed quiz attempt, an at-risk learner, ratings over time, announcements, a discussion and 2 enquiries.
 
-  It runs once per database and refuses in production unless `ALLOW_DEMO_SEED=yes`.
+  It runs once per database and refuses in production unless the server is a demo server (`DEMO_MODE=true`).

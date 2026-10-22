@@ -1,0 +1,9 @@
+# HTTPS with automatic Let's Encrypt certificates. Caddy appends the client's address to
+# X-Forwarded-For, which the app reads with TRUSTED_PROXY_HOPS=1.
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 60MB
+	}
+	reverse_proxy app:3000
+}

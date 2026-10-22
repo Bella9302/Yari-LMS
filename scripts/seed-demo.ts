@@ -6,9 +6,9 @@ import { db } from "@/server/db";
 import { seedDemo } from "@/server/demo/seed";
 
 async function main() {
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "yes") {
+  if (process.env.NODE_ENV === "production" && process.env.DEMO_MODE !== "true") {
     throw new Error(
-      "Refusing to add demo data in production. Set ALLOW_DEMO_SEED=yes on a demo server only.",
+      "Refusing to add demo data to a live site. Only demo servers (DEMO_MODE=true) can be seeded.",
     );
   }
   const logins = await seedDemo({ password: process.env.DEMO_PASSWORD });

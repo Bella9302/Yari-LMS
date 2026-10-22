@@ -37,6 +37,10 @@ Open the printed invitation link, set a password, and enrol your authenticator a
 - Client companies are isolated in the data layer (`src/server/pii/users.ts`, `src/server/rbac.ts`), and integration tests cover it.
 - `/styleguide` shows the design tokens and components.
 
+## Deploying
+
+`docs/DEPLOY.md` explains how to run a demo server on AWS (Cape Town) with Docker, Caddy (HTTPS), Postgres and ClamAV. `sudo ./deploy/bootstrap.sh` sets up a fresh Ubuntu server in one step.
+
 ## Security and POPIA
 
 - `docs/SECURITY.md`: the Phase 7 security review, what was fixed, and the **deployment checklist** (HTTPS, `TRUSTED_PROXY_HOPS`, ClamAV, key storage, backups).

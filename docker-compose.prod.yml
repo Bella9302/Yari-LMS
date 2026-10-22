@@ -1,0 +1,84 @@
+# Production / demo server: Caddy (HTTPS) -> Next.js app -> Postgres, with ClamAV scanning uploads.
+# Run with: docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+name: yari
+
+services:
+  db:
+    image: public.ecr.aws/docker/library/postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yari
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: yari
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yari -d yari"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  clamav:
+    image: clamav/clamav:1.4
+    restart: unless-stopped
+    volumes:
+      - clamdb:/var/lib/clamav
+
+  app:
+    build:
+      context: .
+      args:
+        APP_URL: ${APP_URL:?set APP_URL}
+        DEMO_MODE: ${DEMO_MODE:-false}
+        S3_REGION: ${S3_REGION:-af-south-1}
+        S3_ENDPOINT: ${S3_ENDPOINT:-}
+    image: yari-academy:latest
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      DATABASE_URL: postgresql://yari:${POSTGRES_PASSWORD}@db:5432/yari
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+      STORAGE_LOCAL_DIR: /data/storage
+      TRUSTED_PROXY_HOPS: "1"
+    volumes:
+      - uploads:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      clamav:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:3000/login'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  caddy:
+    image: public.ecr.aws/docker/library/caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  clamdb:
+  uploads:
+  caddy_data:
+  caddy_config:

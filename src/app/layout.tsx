@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Gloock, Martian_Mono } from "next/font/google";
 import { themeScript } from "@/ui/theme";
+import { DemoBanner } from "@/ui/demo-banner";
 import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
+        <DemoBanner />
         {children}
       </body>
     </html>

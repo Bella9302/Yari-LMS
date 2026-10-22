@@ -42,6 +42,11 @@ const schema = z.object({
   CLAMAV_PORT: z.coerce.number().int().default(3310),
   // Test-only escape hatch for running a production build without ClamAV (E2E). Never set in a real deployment.
   ALLOW_UNSCANNED_UPLOADS: z.enum(["true", "false"]).default("false"),
+  /**
+   * A demonstration server (client presentations): shows a "demo, fictional data" banner,
+   * logs emails instead of sending them, and allows the demo seed. Never on the live site.
+   */
+  DEMO_MODE: z.enum(["true", "false"]).default("false"),
 });
 
 export type Env = z.infer<typeof schema>;
