@@ -23,32 +23,19 @@ import {
   updateCourseSettings,
   updateItem,
   updateModule,
-  ValidationError,
   withdrawEnrolment,
   type LayoutModule,
 } from "@/server/courses/builder";
-import { NotFoundError } from "@/server/courses/access";
-import { completeItem, LockedError, recordItemView } from "@/server/courses/learner";
-import { finishUpload, startUpload, UploadError } from "@/server/storage/assets";
-import { PermissionError } from "@/server/pii/users";
+import { completeItem, recordItemView } from "@/server/courses/learner";
+import { friendly } from "@/server/actions/errors";
 import { formValues, type FormState } from "@/lib/form-state";
-import type { UploadTarget } from "@/server/storage/driver";
 
 const CATEGORY = z.enum(["HEALTH_SAFETY", "AI_DIGITAL"]);
-const ITEM_TYPE = z.enum(["VIDEO", "PDF", "SLIDES", "RICH_TEXT", "LINK", "DOWNLOAD"]);
+const ITEM_TYPE = z.enum(["VIDEO", "PDF", "SLIDES", "RICH_TEXT", "LINK", "DOWNLOAD", "QUIZ", "ASSIGNMENT"]);
 
 async function actor() {
   const { user } = await requireUser();
   return { id: user.id, roles: user.roles };
-}
-
-/** Turns expected domain errors into a message for the form; anything else is a real bug and rethrows. */
-function friendly(err: unknown): string {
-  if (err instanceof ValidationError || err instanceof UploadError || err instanceof LockedError)
-    return err.message;
-  if (err instanceof PermissionError) return err.message;
-  if (err instanceof NotFoundError) return "That no longer exists. Reload the page.";
-  throw err;
 }
 
 const teach = (courseId: string) => `/teach/courses/${courseId}`;
@@ -277,54 +264,6 @@ export async function deleteRuleAction(formData: FormData): Promise<void> {
 // ---------------------------------------------------------------------------
 // Files
 // ---------------------------------------------------------------------------
-
-export type StartUploadResult =
-  { ok: true; assetId: string; target: UploadTarget } | { ok: false; error: string };
-
-export async function startUploadAction(input: {
-  courseId: string;
-  itemId?: string;
-  filename: string;
-  mime: string;
-  bytes: number;
-}): Promise<StartUploadResult> {
-  try {
-    const { assetId, target } = await startUpload(await actor(), {
-      courseId: String(input.courseId),
-      itemId: input.itemId ? String(input.itemId) : undefined,
-      filename: String(input.filename),
-      mime: String(input.mime),
-      bytes: Number(input.bytes),
-    });
-    return { ok: true, assetId, target };
-  } catch (err) {
-    return { ok: false, error: friendly(err) };
-  }
-}
-
-export async function finishUploadAction(input: {
-  courseId: string;
-  assetId: string;
-  itemId?: string;
-}): Promise<{ ok: boolean; error?: string }> {
-  const a = await actor();
-  try {
-    const asset = await finishUpload(a, String(input.assetId));
-    if (asset.scanStatus === "INFECTED")
-      return { ok: false, error: "This file contains a virus and was deleted." };
-    if (asset.scanStatus === "FAILED")
-      return {
-        ok: false,
-        error: "This file couldn't be checked and was deleted. Make sure it's the right type.",
-      };
-    if (input.itemId) await attachAssetToItem(a, String(input.itemId), asset.id);
-    else await setCourseCover(a, String(input.courseId), asset.id);
-  } catch (err) {
-    return { ok: false, error: friendly(err) };
-  }
-  revalidatePath(teach(String(input.courseId)), "layout");
-  return { ok: true };
-}
 
 export async function removeItemFileAction(formData: FormData): Promise<void> {
   const courseId = String(formData.get("courseId"));

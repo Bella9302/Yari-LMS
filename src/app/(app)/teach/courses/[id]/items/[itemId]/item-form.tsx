@@ -40,12 +40,16 @@ export function ItemForm({ courseId, item }: { courseId: string; item: EditableI
         )}
       </Field>
 
-      {item.type === "RICH_TEXT" && item.body && (
+      {item.body && (
         <div className="space-y-1.5">
           <p className="text-sm font-medium" id="body-label">
-            Content
+            {item.type === "ASSIGNMENT" ? "Instructions" : "Content"}
           </p>
-          <RichTextEditor name="body" initial={item.body} label="Item content" />
+          <RichTextEditor
+            name="body"
+            initial={item.body}
+            label={item.type === "ASSIGNMENT" ? "Assignment instructions" : "Item content"}
+          />
         </div>
       )}
 

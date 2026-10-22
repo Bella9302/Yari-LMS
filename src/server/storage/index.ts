@@ -12,10 +12,10 @@ export function storage(): StorageDriver {
   driver =
     e.STORAGE_DRIVER === "s3"
       ? new S3Storage(e.S3_BUCKET!, {
-          endpoint: e.S3_ENDPOINT!,
+          endpoint: e.S3_ENDPOINT,
           region: e.S3_REGION,
-          accessKeyId: e.S3_ACCESS_KEY_ID!,
-          secretAccessKey: e.S3_SECRET_ACCESS_KEY!,
+          accessKeyId: e.S3_ACCESS_KEY_ID,
+          secretAccessKey: e.S3_SECRET_ACCESS_KEY,
         })
       : new LocalStorage(e.STORAGE_LOCAL_DIR);
   return driver;

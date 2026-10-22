@@ -38,7 +38,14 @@ export type AuditAction =
   | "enrolment.withdrawn"
   | "enrolment.completed"
   | "asset.uploaded"
-  | "asset.rejected";
+  | "asset.rejected"
+  | "quiz.submitted"
+  | "quiz.marked"
+  | "assignment.submitted"
+  | "assignment.marked"
+  | "assignment.returned"
+  | "grade.overridden"
+  | "gradebook.exported";
 
 export interface AuditEntry {
   actorId: string | null;

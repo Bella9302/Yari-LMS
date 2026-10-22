@@ -47,6 +47,7 @@ export default async function CourseSettingsPage({ params }: { params: Promise<{
             </div>
           )}
           <FileUploader
+            purpose="cover"
             courseId={course.id}
             rule={COVER_RULE}
             label={course.coverAsset ? "Replace image" : "Choose an image"}

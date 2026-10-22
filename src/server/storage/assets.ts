@@ -13,13 +13,22 @@ import { storage } from "@/server/storage";
 import type { UploadTarget } from "@/server/storage/driver";
 import { contentMatchesType, SNIFF_BYTES } from "@/server/storage/sniff";
 import { scanStream } from "@/server/storage/clamav";
-import { COVER_RULE, ITEM_FILE_RULES, type FileRule } from "@/lib/file-types";
+import {
+  AUDIO_RULE,
+  COVER_RULE,
+  FEEDBACK_FILE_RULE,
+  ITEM_FILE_RULES,
+  SUBMISSION_RULE,
+  type FileRule,
+  type UploadPurpose,
+} from "@/lib/file-types";
 
 export class UploadError extends Error {}
 
 export interface StartUploadInput {
+  purpose: UploadPurpose;
   courseId: string;
-  /** Set for item files; omitted for a course cover image. */
+  /** The item the file belongs to (item files, assignment submissions, feedback). */
   itemId?: string;
   filename: string;
   mime: string;
@@ -29,6 +38,7 @@ export interface StartUploadInput {
 function kindFor(mime: string): AssetKind {
   if (mime.startsWith("video/")) return "VIDEO";
   if (mime.startsWith("image/")) return "IMAGE";
+  if (mime.startsWith("audio/")) return "AUDIO";
   if (mime === "application/pdf") return "DOCUMENT";
   return "FILE";
 }
@@ -42,16 +52,7 @@ export async function startUpload(
   actor: Actor,
   input: StartUploadInput,
 ): Promise<{ assetId: string; target: UploadTarget }> {
-  await assertCanEditCourse(actor, input.courseId);
-  let rule: FileRule = COVER_RULE;
-  if (input.itemId) {
-    const item = await db.item.findFirst({
-      where: { id: input.itemId, module: { courseId: input.courseId } },
-    });
-    const itemRule = item && ITEM_FILE_RULES[item.type];
-    if (!itemRule) throw new UploadError("This item doesn't take a file.");
-    rule = itemRule;
-  }
+  const rule = await ruleFor(actor, input);
   if (!rule.mimes.includes(input.mime))
     throw new UploadError(`That file type isn't allowed here. Use: ${rule.label}.`);
   if (!Number.isInteger(input.bytes) || input.bytes <= 0) throw new UploadError("That file is empty.");
@@ -73,6 +74,43 @@ export async function startUpload(
     bytes: asset.bytes,
   });
   return { assetId: asset.id, target };
+}
+
+/** Checks the uploader may upload for this purpose and returns the file rule that applies. */
+async function ruleFor(actor: Actor, input: StartUploadInput): Promise<FileRule> {
+  const item = input.itemId
+    ? await db.item.findFirst({
+        where: { id: input.itemId, module: { courseId: input.courseId } },
+        include: { assignment: true, module: { select: { course: { select: { slug: true } } } } },
+      })
+    : null;
+  if (input.itemId && !item) throw new UploadError("That item no longer exists.");
+
+  switch (input.purpose) {
+    case "cover":
+      await assertCanEditCourse(actor, input.courseId);
+      return COVER_RULE;
+    case "item": {
+      await assertCanEditCourse(actor, input.courseId);
+      const rule = item && ITEM_FILE_RULES[item.type];
+      if (!rule) throw new UploadError("This item doesn't take a file.");
+      return rule;
+    }
+    case "feedback":
+    case "audio":
+      await assertCanEditCourse(actor, input.courseId);
+      if (item?.type !== "ASSIGNMENT") throw new UploadError("Feedback files belong to an assignment.");
+      return input.purpose === "audio" ? AUDIO_RULE : FEEDBACK_FILE_RULE;
+    case "submission": {
+      // Learners: enrolled, item unlocked and accepting files.
+      if (!item?.assignment?.allowFiles) throw new UploadError("This assignment doesn't take files.");
+      const view = await getLearnerItem(actor, item.module.course.slug, item.id);
+      if (!view || view.course.preview || !view.item.lock.unlocked || !view.course.enrolment) {
+        throw new UploadError("You can't hand in work for this item.");
+      }
+      return SUBMISSION_RULE;
+    }
+  }
 }
 
 async function readHead(stream: Readable, n: number): Promise<Buffer> {
@@ -161,7 +199,8 @@ export async function finishUpload(actor: Actor, assetId: string) {
 
 /**
  * Who may download a file: admins; its uploader; staff of a course using it;
- * learners for whom an item using it is visible and unlocked.
+ * learners for whom an item using it is visible and unlocked; for handed-in work and
+ * feedback, see the comments below.
  */
 export async function canReadAsset(actor: Actor, assetId: string): Promise<boolean> {
   const asset = await db.asset.findUnique({
@@ -170,10 +209,37 @@ export async function canReadAsset(actor: Actor, assetId: string): Promise<boole
       uploadedById: true,
       items: { select: { id: true, module: { select: { course: { select: { id: true, slug: true } } } } } },
       coverOf: { select: { id: true, slug: true } },
+      submissionFiles: {
+        select: { submission: { select: { enrolment: { select: { userId: true, courseId: true } } } } },
+      },
+      feedbackFor: {
+        select: {
+          status: true,
+          submission: { select: { enrolment: { select: { userId: true, courseId: true } } } },
+        },
+      },
+      audioFor: {
+        select: {
+          status: true,
+          submission: { select: { enrolment: { select: { userId: true, courseId: true } } } },
+        },
+      },
     },
   });
   if (!asset) return false;
   if (isSuperAdmin(actor.roles) || asset.uploadedById === actor.id) return true;
+
+  // Handed-in work: the learner who submitted it, and the course's trainers.
+  for (const f of asset.submissionFiles) {
+    const e = f.submission.enrolment;
+    if (e.userId === actor.id || (await canEditCourse(actor, e.courseId))) return true;
+  }
+  // Feedback: the course's trainers, and the learner once the mark is released.
+  for (const m of [...asset.feedbackFor, ...asset.audioFor]) {
+    const e = m.submission.enrolment;
+    if ((e.userId === actor.id && m.status === "RELEASED") || (await canEditCourse(actor, e.courseId)))
+      return true;
+  }
 
   const courseIds = new Set([
     ...asset.items.map((i) => i.module.course.id),

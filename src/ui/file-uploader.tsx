@@ -3,8 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
 import { Upload } from "lucide-react";
-import { finishUploadAction, startUploadAction } from "@/server/actions/courses";
-import { formatBytes, type FileRule } from "@/lib/file-types";
+import { uploadFile, type UploadedFile } from "@/ui/upload-client";
+
+export type { UploadedFile };
+import { formatBytes, type FileRule, type UploadPurpose } from "@/lib/file-types";
 import { Notice } from "@/ui/primitives";
 import { cn } from "@/ui/cn";
 
@@ -16,15 +18,22 @@ type Phase =
 
 /** Picks a file, uploads it straight to storage with progress, then has the server verify and virus-scan it. */
 export function FileUploader({
+  purpose,
   courseId,
   itemId,
   rule,
   label,
+  onUploaded,
+  disabled,
 }: {
+  purpose: UploadPurpose;
   courseId: string;
   itemId?: string;
   rule: FileRule;
   label: string;
+  /** Called with the verified file. Without it the page refreshes (the server attached the file). */
+  onUploaded?: (file: UploadedFile) => void;
+  disabled?: boolean;
 }) {
   const router = useRouter();
   const inputId = useId();
@@ -32,41 +41,31 @@ export function FileUploader({
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
 
   async function upload(file: File) {
-    if (file.size > rule.maxBytes)
+    if (file.size > rule.maxBytes) {
       return setPhase({
         kind: "error",
         message: `That file is ${formatBytes(file.size)}. The limit is ${formatBytes(rule.maxBytes)}.`,
       });
-    const mime = file.type || guessMime(file.name);
-    const start = await startUploadAction({ courseId, itemId, filename: file.name, mime, bytes: file.size });
-    if (!start.ok) return setPhase({ kind: "error", message: start.error });
-
+    }
     setPhase({ kind: "uploading", pct: 0 });
-    const ok = await new Promise<boolean>((resolve) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open(start.target.method, start.target.url);
-      for (const [k, v] of Object.entries(start.target.headers)) xhr.setRequestHeader(k, v);
-      xhr.upload.onprogress = (e) =>
-        e.lengthComputable && setPhase({ kind: "uploading", pct: Math.round((e.loaded / e.total) * 100) });
-      xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
-      xhr.onerror = () => resolve(false);
-      xhr.send(file);
-    });
-    if (!ok)
-      return setPhase({
-        kind: "error",
-        message: "The upload didn't finish. Check your connection and try again.",
+    try {
+      const asset = await uploadFile(file, {
+        purpose,
+        courseId,
+        itemId,
+        onProgress: (pct) => setPhase({ kind: "uploading", pct }),
+        onChecking: () => setPhase({ kind: "checking" }),
       });
-
-    setPhase({ kind: "checking" });
-    const done = await finishUploadAction({ courseId, assetId: start.assetId, itemId });
-    if (!done.ok) return setPhase({ kind: "error", message: done.error ?? "Upload failed." });
-    setPhase({ kind: "idle" });
-    if (input.current) input.current.value = "";
-    router.refresh();
+      setPhase({ kind: "idle" });
+      if (input.current) input.current.value = "";
+      if (onUploaded) onUploaded(asset);
+      else router.refresh();
+    } catch (err) {
+      setPhase({ kind: "error", message: (err as Error).message });
+    }
   }
 
-  const busy = phase.kind === "uploading" || phase.kind === "checking";
+  const busy = phase.kind === "uploading" || phase.kind === "checking" || Boolean(disabled);
   return (
     <div className="space-y-3">
       <label
@@ -114,24 +113,4 @@ export function FileUploader({
       {phase.kind === "error" && <Notice tone="danger">{phase.message}</Notice>}
     </div>
   );
-}
-
-// Some browsers leave File.type empty for less common extensions.
-function guessMime(name: string) {
-  const ext = name.split(".").pop()?.toLowerCase();
-  const map: Record<string, string> = {
-    pdf: "application/pdf",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    csv: "text/csv",
-    txt: "text/plain",
-    mp4: "video/mp4",
-    webm: "video/webm",
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    webp: "image/webp",
-  };
-  return map[ext ?? ""] ?? "application/octet-stream";
 }

@@ -93,6 +93,8 @@ model User {
   courseStaff     CourseStaff[]
   enrolments      Enrolment[]
   uploads         Asset[]
+  marks           Mark[]
+  gradeOverrides  GradeOverride[]
 }
 
 model UserProfile {
@@ -282,6 +284,8 @@ enum ItemType {
   RICH_TEXT
   LINK
   DOWNLOAD
+  QUIZ
+  ASSIGNMENT
 }
 
 enum ReleaseRuleType {
@@ -303,6 +307,7 @@ enum AssetKind {
   DOCUMENT
   VIDEO
   IMAGE
+  AUDIO
   FILE
 }
 
@@ -349,9 +354,11 @@ model Course {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  staff      CourseStaff[]
-  modules    Module[]
-  enrolments Enrolment[]
+  staff         CourseStaff[]
+  modules       Module[]
+  enrolments    Enrolment[]
+  questionBanks QuestionBank[]
+  rubrics       Rubric[]
 
   @@index([status, isTemplate])
 }
@@ -384,26 +391,29 @@ model Module {
 }
 
 model Item {
-  id           String         @id @default(cuid(2))
+  id           String          @id @default(cuid(2))
   moduleId     String
-  module       Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  module       Module          @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   position     Int
   type         ItemType
   title        String
   // Tiptap JSON for RICH_TEXT; optional intro text for other types.
   body         Json?
   assetId      String?
-  asset        Asset?         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  asset        Asset?          @relation(fields: [assetId], references: [id], onDelete: SetNull)
   externalUrl  String?
-  required     Boolean        @default(true)
+  required     Boolean         @default(true)
   // New items start hidden so half-built content never reaches learners.
-  published    Boolean        @default(false)
+  published    Boolean         @default(false)
   estMinutes   Int?
-  releaseRules ReleaseRule[]  @relation("ItemRules")
-  dependents   ReleaseRule[]  @relation("RuleDependency")
+  releaseRules ReleaseRule[]   @relation("ItemRules")
+  dependents   ReleaseRule[]   @relation("RuleDependency")
   progress     ItemProgress[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  quiz         Quiz?
+  assignment   Assignment?
+  overrides    GradeOverride[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   @@index([moduleId, position])
   @@index([assetId])
@@ -428,22 +438,25 @@ model ReleaseRule {
 }
 
 model Asset {
-  id           String          @id @default(cuid(2))
-  storageKey   String          @unique
-  filename     String
-  mime         String
-  kind         AssetKind
+  id              String           @id @default(cuid(2))
+  storageKey      String           @unique
+  filename        String
+  mime            String
+  kind            AssetKind
   // Declared size at upload time; verified against the stored object before release.
-  bytes        Int
-  sha256       String?
-  scanStatus   AssetScanStatus @default(PENDING)
-  scanDetail   String?
-  scannedAt    DateTime?
-  uploadedById String?
-  uploadedBy   User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  createdAt    DateTime        @default(now())
-  items        Item[]
-  coverOf      Course[]        @relation("CourseCover")
+  bytes           Int
+  sha256          String?
+  scanStatus      AssetScanStatus  @default(PENDING)
+  scanDetail      String?
+  scannedAt       DateTime?
+  uploadedById    String?
+  uploadedBy      User?            @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+  items           Item[]
+  coverOf         Course[]         @relation("CourseCover")
+  submissionFiles SubmissionFile[]
+  feedbackFor     Mark[]           @relation("MarkFeedbackFile")
+  audioFor        Mark[]           @relation("MarkAudio")
 
   @@index([uploadedById])
 }
@@ -468,6 +481,9 @@ model Enrolment {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   progress       ItemProgress[]
+  quizAttempts   QuizAttempt[]
+  submissions    Submission[]
+  overrides      GradeOverride[]
 
   @@unique([userId, courseId])
   @@index([courseId, status])
@@ -490,4 +506,245 @@ model ItemProgress {
 
   @@unique([enrolmentId, itemId])
   @@index([itemId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Assessment
+// ---------------------------------------------------------------------------
+
+enum QuestionType {
+  MCQ
+  MULTI_SELECT
+  TRUE_FALSE
+  SHORT_ANSWER
+  MATCHING
+}
+
+enum ShowAnswers {
+  NEVER
+  AFTER_SUBMIT
+  AFTER_PASS
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  // Short answers that didn't match an accepted answer wait for a trainer.
+  NEEDS_MARKING
+  MARKED
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  MARKED
+  // Trainer asked the learner to resubmit.
+  RETURNED
+}
+
+enum MarkStatus {
+  DRAFT
+  RELEASED
+}
+
+model QuestionBank {
+  id        String        @id @default(cuid(2))
+  courseId  String
+  course    Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title     String
+  questions Question[]
+  sections  QuizSection[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([courseId])
+}
+
+model Question {
+  id          String       @id @default(cuid(2))
+  bankId      String
+  bank        QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  type        QuestionType
+  prompt      String
+  // Shape depends on type (see src/lib/questions.ts). Never sent to learners as-is.
+  options     Json
+  answerKey   Json
+  points      Int          @default(1)
+  explanation String?
+  position    Int
+  // Archived instead of deleted, so past attempts keep making sense.
+  archived    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([bankId, archived, position])
+}
+
+model Quiz {
+  itemId       String        @id
+  item         Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  instructions String        @default("")
+  passPct      Int           @default(70)
+  timeLimitMin Int?
+  maxAttempts  Int?
+  shuffle      Boolean       @default(true)
+  showAnswers  ShowAnswers   @default(AFTER_SUBMIT)
+  sections     QuizSection[]
+  attempts     QuizAttempt[]
+}
+
+// Draws `drawCount` random questions from a bank (all of them when null).
+model QuizSection {
+  id        String       @id @default(cuid(2))
+  quizId    String
+  quiz      Quiz         @relation(fields: [quizId], references: [itemId], onDelete: Cascade)
+  bankId    String
+  bank      QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  drawCount Int?
+  position  Int
+
+  @@index([quizId])
+}
+
+model QuizAttempt {
+  id          String        @id @default(cuid(2))
+  quizId      String
+  quiz        Quiz          @relation(fields: [quizId], references: [itemId], onDelete: Cascade)
+  enrolmentId String
+  enrolment   Enrolment     @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  attemptNo   Int
+  // Snapshot of the drawn questions, including the answer key (server-side only).
+  questions   Json
+  answers     Json          @default("{}")
+  // Points per question id (auto-marked, then adjusted by a trainer for short answers).
+  awarded     Json          @default("{}")
+  scorePct    Float?
+  passed      Boolean?
+  status      AttemptStatus @default(IN_PROGRESS)
+  startedAt   DateTime      @default(now())
+  deadline    DateTime?
+  submittedAt DateTime?
+  markedById  String?
+  markedAt    DateTime?
+
+  @@unique([quizId, enrolmentId, attemptNo])
+  @@index([enrolmentId])
+  @@index([quizId, status])
+}
+
+model Rubric {
+  id          String            @id @default(cuid(2))
+  courseId    String
+  course      Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  criteria    RubricCriterion[]
+  assignments Assignment[]
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([courseId])
+}
+
+model RubricCriterion {
+  id          String        @id @default(cuid(2))
+  rubricId    String
+  rubric      Rubric        @relation(fields: [rubricId], references: [id], onDelete: Cascade)
+  position    Int
+  title       String
+  description String        @default("")
+  levels      RubricLevel[]
+}
+
+model RubricLevel {
+  id          String          @id @default(cuid(2))
+  criterionId String
+  criterion   RubricCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+  position    Int
+  label       String
+  points      Int
+  description String          @default("")
+}
+
+model Assignment {
+  itemId      String       @id
+  item        Item         @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  dueAt       DateTime?
+  allowText   Boolean      @default(true)
+  allowFiles  Boolean      @default(true)
+  maxFiles    Int          @default(3)
+  // When a rubric is attached, maxPoints follows the rubric's total.
+  maxPoints   Int          @default(100)
+  passPct     Int          @default(50)
+  rubricId    String?
+  rubric      Rubric?      @relation(fields: [rubricId], references: [id], onDelete: SetNull)
+  allowLate   Boolean      @default(true)
+  submissions Submission[]
+}
+
+model Submission {
+  id           String           @id @default(cuid(2))
+  assignmentId String
+  assignment   Assignment       @relation(fields: [assignmentId], references: [itemId], onDelete: Cascade)
+  enrolmentId  String
+  enrolment    Enrolment        @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  attemptNo    Int
+  text         String?
+  status       SubmissionStatus @default(SUBMITTED)
+  isLate       Boolean          @default(false)
+  submittedAt  DateTime         @default(now())
+  files        SubmissionFile[]
+  mark         Mark?
+
+  @@unique([assignmentId, enrolmentId, attemptNo])
+  @@index([enrolmentId])
+  @@index([assignmentId, status])
+}
+
+model SubmissionFile {
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  assetId      String
+  asset        Asset      @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  position     Int
+
+  @@id([submissionId, assetId])
+  @@index([assetId])
+}
+
+model Mark {
+  id               String     @id @default(cuid(2))
+  submissionId     String     @unique
+  submission       Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  graderId         String?
+  grader           User?      @relation(fields: [graderId], references: [id], onDelete: SetNull)
+  score            Float
+  // criterionId -> levelId
+  rubricSelections Json       @default("{}")
+  feedbackText     String?
+  feedbackAssetId  String?
+  feedbackAsset    Asset?     @relation("MarkFeedbackFile", fields: [feedbackAssetId], references: [id], onDelete: SetNull)
+  audioAssetId     String?
+  audioAsset       Asset?     @relation("MarkAudio", fields: [audioAssetId], references: [id], onDelete: SetNull)
+  status           MarkStatus @default(DRAFT)
+  releasedAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([feedbackAssetId])
+  @@index([audioAssetId])
+}
+
+// A trainer's manual grade for one learner on one assessed item. Replaces the computed grade.
+model GradeOverride {
+  id          String    @id @default(cuid(2))
+  enrolmentId String
+  enrolment   Enrolment @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  itemId      String
+  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  scorePct    Float
+  reason      String
+  graderId    String?
+  grader      User?     @relation(fields: [graderId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([enrolmentId, itemId])
 }

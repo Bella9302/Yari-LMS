@@ -30,7 +30,7 @@ export function ReleaseRules({
   courseId: string;
   target: { moduleId: string } | { itemId: string };
   rules: RuleRow[];
-  itemOptions: { module: string; items: { id: string; title: string }[] }[];
+  itemOptions: { module: string; items: { id: string; title: string; type?: string }[] }[];
 }) {
   const selfId = "itemId" in target ? target.itemId : null;
   return (

@@ -14,10 +14,14 @@ export function RuleForm({
 }: {
   courseId: string;
   target: { moduleId: string } | { itemId: string };
-  itemOptions: { module: string; items: { id: string; title: string }[] }[];
+  itemOptions: { module: string; items: { id: string; title: string; type?: string }[] }[];
 }) {
   const [state, action] = useActionState(addRuleAction, initialFormState);
-  const [type, setType] = useState<"AFTER_DATE" | "ITEM_COMPLETED">("ITEM_COMPLETED");
+  const [type, setType] = useState<"AFTER_DATE" | "ITEM_COMPLETED" | "MIN_SCORE">("ITEM_COMPLETED");
+  const quizzes = itemOptions
+    .map((g) => ({ ...g, items: g.items.filter((i) => i.type === "QUIZ") }))
+    .filter((g) => g.items.length > 0);
+  const options = type === "MIN_SCORE" ? quizzes : itemOptions;
   const key = "moduleId" in target ? target.moduleId : target.itemId;
   return (
     <form
@@ -35,6 +39,7 @@ export function RuleForm({
           <Select {...p} value={type} onChange={(e) => setType(e.target.value as typeof type)}>
             <option value="ITEM_COMPLETED">After an item is completed</option>
             <option value="AFTER_DATE">From a date</option>
+            {quizzes.length > 0 && <option value="MIN_SCORE">After a quiz score</option>}
           </Select>
         )}
       </Field>
@@ -43,13 +48,13 @@ export function RuleForm({
           {(p) => <Input {...p} type="datetime-local" required />}
         </Field>
       ) : (
-        <Field label="Item" name="dependsOnItemId" id={`rule-dep-${key}`}>
+        <Field label={type === "MIN_SCORE" ? "Quiz" : "Item"} name="dependsOnItemId" id={`rule-dep-${key}`}>
           {(p) => (
             <Select {...p} required defaultValue="">
               <option value="" disabled>
                 Choose an item
               </option>
-              {itemOptions.map((g) => (
+              {options.map((g) => (
                 <optgroup key={g.module} label={g.module}>
                   {g.items.map((i) => (
                     <option key={i.id} value={i.id}>

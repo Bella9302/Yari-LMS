@@ -280,6 +280,10 @@ export async function completeItem(
 ): Promise<{ progressPct: number; courseCompleted: boolean }> {
   const enrolment = await enrolmentForItem(userId, itemId);
   if (!enrolment) throw new LockedError("This item isn't available.");
+  const item = await db.item.findUniqueOrThrow({ where: { id: itemId }, select: { type: true } });
+  // Quizzes and assignments complete by reaching their pass mark, not by a button.
+  if (item.type === "QUIZ" || item.type === "ASSIGNMENT")
+    throw new LockedError("This item completes when you pass it.");
   const now = new Date();
   await db.itemProgress.upsert({
     where: { enrolmentId_itemId: { enrolmentId: enrolment.id, itemId } },
@@ -297,9 +301,9 @@ export async function completeItem(
 }
 
 /**
- * Recalculates progress. A course is complete when every required, published item is done.
- * (Phase 3 adds: and every quiz/assignment pass mark is met.) Completion is sticky:
- * content added later doesn't take a completion away.
+ * Recalculates progress. A course is complete when every required, published item is done;
+ * quizzes and assignments only count as done once their pass mark is reached (see
+ * assessment/grades.ts). Completion is sticky: content added later doesn't take it away.
  */
 export async function recomputeEnrolment(enrolmentId: string) {
   const enrolment = await db.enrolment.findUniqueOrThrow({ where: { id: enrolmentId } });

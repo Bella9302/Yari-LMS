@@ -1,5 +1,7 @@
 import {
   AlignLeft,
+  ClipboardCheck,
+  ListChecks,
   Download,
   FileText,
   Link2,
@@ -20,6 +22,16 @@ export const ITEM_TYPE_META: Record<ItemType, { label: string; icon: LucideIcon;
   SLIDES: { label: "Slides", icon: Presentation, hint: "A slide deck exported as PDF" },
   LINK: { label: "Link", icon: Link2, hint: "A page on another website" },
   DOWNLOAD: { label: "Download", icon: Download, hint: "A template or form learners save" },
+  QUIZ: {
+    label: "Quiz",
+    icon: ListChecks,
+    hint: "Questions drawn from question banks, marked automatically",
+  },
+  ASSIGNMENT: {
+    label: "Assignment",
+    icon: ClipboardCheck,
+    hint: "Work learners submit for a trainer to mark",
+  },
 };
 
 export function ItemTypeIcon({ type, className }: { type: ItemType; className?: string }) {

@@ -67,6 +67,9 @@ test("a trainer builds and publishes a course", async ({ page }, info) => {
   await expect(rows).toHaveText(["Ladder basics", "Inspection form"].map((t) => new RegExp(t)));
   await page.getByRole("button", { name: "Move Inspection form" }).focus();
   await page.keyboard.press("Space");
+  await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText(
+    /^(Picked up Inspection form|Inspection form is over Inspection form)/,
+  );
   await page.keyboard.press("ArrowUp");
   // Wait until the drag has registered its new target before dropping (as a person would).
   await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText("Inspection form is over Ladder basics.");

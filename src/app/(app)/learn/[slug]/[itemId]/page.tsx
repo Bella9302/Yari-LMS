@@ -11,6 +11,10 @@ import { ITEM_TYPE_META } from "@/ui/item-type";
 import { Notice } from "@/ui/primitives";
 import { RichTextView } from "@/ui/rich-text-view";
 import { CompleteButton, ViewTracker } from "./item-actions";
+import { QuizPanel } from "./quiz-panel";
+import { AssignmentPanel } from "./assignment-panel";
+import { getQuizOverview } from "@/server/assessment/quiz";
+import { getAssignmentOverview } from "@/server/assessment/assignments";
 
 export const metadata: Metadata = { title: "Course item" };
 
@@ -22,6 +26,14 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
   const { course, item, moduleTitle, prevItemId, nextItemId } = view;
   const canOpen = item.lock.unlocked || course.preview;
   const tracking = Boolean(course.enrolment) && item.lock.unlocked && !course.course.archived;
+  const assessed = item.type === "QUIZ" || item.type === "ASSIGNMENT";
+  // Assessments are personal: staff previewing see a note instead.
+  const learnerView = Boolean(course.enrolment) && item.lock.unlocked;
+  const actor = { id: user.id, roles: user.roles };
+  const [quiz, assignment] = await Promise.all([
+    item.type === "QUIZ" && learnerView ? getQuizOverview(actor, item.id) : null,
+    item.type === "ASSIGNMENT" && learnerView ? getAssignmentOverview(actor, item.id) : null,
+  ]);
 
   return (
     <article
@@ -43,7 +55,27 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
         <Notice title="Locked for learners">{item.lock.reasons.join(" · ")}</Notice>
       )}
 
-      {canOpen ? (
+      {canOpen && assessed ? (
+        quiz ? (
+          <QuizPanel slug={slug} itemId={item.id} quiz={quiz} />
+        ) : assignment ? (
+          <AssignmentPanel
+            slug={slug}
+            itemId={item.id}
+            courseId={course.course.id}
+            instructions={item.body}
+            data={assignment}
+          />
+        ) : (
+          <>
+            {item.body ? <RichTextView doc={item.body} /> : null}
+            <Notice>
+              Learners take this {item.type === "QUIZ" ? "quiz" : "assignment"} here. Preview it from the
+              builder.
+            </Notice>
+          </>
+        )
+      ) : canOpen ? (
         <ItemContent item={item} />
       ) : (
         <div className="border-line-strong flex flex-col items-center gap-3 border border-dashed px-6 py-14 text-center">
@@ -58,7 +90,7 @@ export default async function ItemPage({ params }: { params: Promise<{ slug: str
       )}
 
       <footer className="border-line space-y-6 border-t pt-6">
-        {tracking && (
+        {tracking && !assessed && (
           <CompleteButton
             slug={slug}
             itemId={item.id}

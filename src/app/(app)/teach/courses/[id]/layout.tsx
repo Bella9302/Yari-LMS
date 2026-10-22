@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Eye } from "lucide-react";
 import { requireUser } from "@/server/guards";
+import { db } from "@/server/db";
 import { getEditableCourse } from "@/server/courses/queries";
 import { buttonClasses } from "@/ui/button";
 import { CategoryTag, Tag } from "@/ui/primitives";
@@ -18,6 +19,20 @@ export default async function CourseLayout({
   const { id } = await params;
   const course = await getEditableCourse({ id: user.id, roles: user.roles }, id);
   const base = `/teach/courses/${id}`;
+  const [pendingSubmissions, pendingAttempts] = await Promise.all([
+    db.submission.count({
+      where: {
+        status: "SUBMITTED",
+        OR: [{ mark: null }, { mark: { status: "DRAFT" } }],
+        assignment: { item: { module: { courseId: id } } },
+        enrolment: { status: { not: "WITHDRAWN" } },
+      },
+    }),
+    db.quizAttempt.count({
+      where: { status: "NEEDS_MARKING", quiz: { item: { module: { courseId: id } } } },
+    }),
+  ]);
+  const toMark = pendingSubmissions + pendingAttempts;
 
   return (
     <div
@@ -55,8 +70,16 @@ export default async function CourseLayout({
         label="Course sections"
         items={[
           { href: base, label: "Content", exact: true },
+          { href: `${base}/questions`, label: "Questions" },
+          { href: `${base}/rubrics`, label: "Rubrics" },
+          ...(course.isTemplate
+            ? []
+            : [
+                { href: `${base}/marking`, label: toMark ? `Marking (${toMark})` : "Marking" },
+                { href: `${base}/gradebook`, label: "Gradebook" },
+                { href: `${base}/people`, label: "People" },
+              ]),
           { href: `${base}/settings`, label: "Settings" },
-          ...(course.isTemplate ? [] : [{ href: `${base}/people`, label: "People" }]),
         ]}
       />
       {children}

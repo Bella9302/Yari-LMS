@@ -16,6 +16,7 @@ import { assertCanEditCourse, canCreateCourses, NotFoundError } from "@/server/c
 import { createsCycle } from "@/server/courses/release";
 import { parseVideoEmbed } from "@/lib/video-embed";
 import { sanitizeRichText } from "@/lib/rich-text";
+import { quizQuestionCount } from "@/server/assessment/authoring";
 
 export class ValidationError extends Error {}
 
@@ -98,9 +99,14 @@ export async function cloneCourse(
         orderBy: { position: "asc" },
         include: {
           releaseRules: true,
-          items: { orderBy: { position: "asc" }, include: { releaseRules: true } },
+          items: {
+            orderBy: { position: "asc" },
+            include: { releaseRules: true, quiz: { include: { sections: true } }, assignment: true },
+          },
         },
       },
+      questionBanks: { include: { questions: { where: { archived: false } } } },
+      rubrics: { include: { criteria: { include: { levels: true } } } },
     },
   });
   if (!source.isTemplate) await assertCanEditCourse(actor, sourceId);
@@ -120,6 +126,52 @@ export async function cloneCourse(
         staff: { create: { userId: actor.id, role: "LEAD" } },
       },
     });
+
+    // Question banks and rubrics are copied so the new course can change them independently.
+    const bankIdMap = new Map<string, string>();
+    for (const b of source.questionBanks) {
+      const bank = await tx.questionBank.create({ data: { courseId: course.id, title: b.title } });
+      bankIdMap.set(b.id, bank.id);
+      if (b.questions.length) {
+        await tx.question.createMany({
+          data: b.questions.map((q) => ({
+            bankId: bank.id,
+            type: q.type,
+            prompt: q.prompt,
+            options: q.options as Prisma.InputJsonValue,
+            answerKey: q.answerKey as Prisma.InputJsonValue,
+            points: q.points,
+            explanation: q.explanation,
+            position: q.position,
+          })),
+        });
+      }
+    }
+    const rubricIdMap = new Map<string, string>();
+    for (const r of source.rubrics) {
+      const rubric = await tx.rubric.create({
+        data: {
+          courseId: course.id,
+          title: r.title,
+          criteria: {
+            create: r.criteria.map((c) => ({
+              position: c.position,
+              title: c.title,
+              description: c.description,
+              levels: {
+                create: c.levels.map((l) => ({
+                  position: l.position,
+                  label: l.label,
+                  points: l.points,
+                  description: l.description,
+                })),
+              },
+            })),
+          },
+        },
+      });
+      rubricIdMap.set(r.id, rubric.id);
+    }
 
     const itemIdMap = new Map<string, string>();
     const pendingRules: {
@@ -146,6 +198,43 @@ export async function cloneCourse(
             required: i.required,
             published: i.published,
             estMinutes: i.estMinutes,
+            ...(i.quiz
+              ? {
+                  quiz: {
+                    create: {
+                      instructions: i.quiz.instructions,
+                      passPct: i.quiz.passPct,
+                      timeLimitMin: i.quiz.timeLimitMin,
+                      maxAttempts: i.quiz.maxAttempts,
+                      shuffle: i.quiz.shuffle,
+                      showAnswers: i.quiz.showAnswers,
+                      sections: {
+                        create: i.quiz.sections.map((sec) => ({
+                          bankId: bankIdMap.get(sec.bankId)!,
+                          drawCount: sec.drawCount,
+                          position: sec.position,
+                        })),
+                      },
+                    },
+                  },
+                }
+              : {}),
+            ...(i.assignment
+              ? {
+                  assignment: {
+                    create: {
+                      allowText: i.assignment.allowText,
+                      allowFiles: i.assignment.allowFiles,
+                      maxFiles: i.assignment.maxFiles,
+                      maxPoints: i.assignment.maxPoints,
+                      passPct: i.assignment.passPct,
+                      allowLate: i.assignment.allowLate,
+                      // Due dates belong to a particular run of a course, so they aren't copied.
+                      rubricId: i.assignment.rubricId ? rubricIdMap.get(i.assignment.rubricId) : null,
+                    },
+                  },
+                }
+              : {}),
           },
         });
         itemIdMap.set(i.id, item.id);
@@ -311,7 +400,13 @@ export async function addItem(actor: Actor, moduleId: string, type: ItemType, ti
       type,
       title: title.trim() || "Untitled item",
       position: (last?.position ?? -1) + 1,
-      body: type === "RICH_TEXT" ? { type: "doc", content: [{ type: "paragraph" }] } : undefined,
+      // Text items and assignment instructions are rich text.
+      body:
+        type === "RICH_TEXT" || type === "ASSIGNMENT"
+          ? { type: "doc", content: [{ type: "paragraph" }] }
+          : undefined,
+      ...(type === "QUIZ" ? { quiz: { create: {} } } : {}),
+      ...(type === "ASSIGNMENT" ? { assignment: { create: {} } } : {}),
     },
   });
 }
@@ -359,8 +454,13 @@ export async function updateItem(actor: Actor, itemId: string, input: ItemInput)
   }
 
   if (input.published) {
+    if (item.type === "QUIZ" && (await quizQuestionCount(item.id)) === 0) {
+      throw new ValidationError("Add questions to this quiz before showing it to learners.");
+    }
     const hasContent =
       item.type === "RICH_TEXT" ||
+      item.type === "QUIZ" ||
+      item.type === "ASSIGNMENT" ||
       (item.type === "LINK" && (externalUrl ?? item.externalUrl)) ||
       (item.type === "VIDEO" && ((externalUrl ?? item.externalUrl) || item.assetId)) ||
       (["PDF", "SLIDES", "DOWNLOAD"].includes(item.type) && item.assetId);
@@ -448,8 +548,8 @@ export interface RuleInput {
   minScorePct?: number | null;
 }
 
-// Item types that produce a score (quizzes arrive in Phase 3).
-const SCORED_TYPES: ItemType[] = [];
+// Item types that produce a score for MIN_SCORE rules.
+const SCORED_TYPES: ItemType[] = ["QUIZ"];
 
 export async function addReleaseRule(actor: Actor, input: RuleInput) {
   const courseId =

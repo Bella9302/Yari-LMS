@@ -10,18 +10,25 @@ import {
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { StorageDriver } from "@/server/storage/driver";
 
-/** S3-compatible object storage (Cloudflare R2 in production). Browsers upload and download via presigned URLs. */
+/**
+ * Amazon S3 (or any S3-compatible store). Browsers upload and download via short-lived presigned URLs,
+ * so file bytes never pass through the app server. The bucket must allow CORS PUT from the app's origin.
+ */
 export class S3Storage implements StorageDriver {
   private readonly client: S3Client;
 
   constructor(
     private readonly bucket: string,
-    opts: { endpoint: string; region: string; accessKeyId: string; secretAccessKey: string },
+    opts: { endpoint?: string; region: string; accessKeyId?: string; secretAccessKey?: string },
   ) {
     this.client = new S3Client({
-      endpoint: opts.endpoint,
       region: opts.region,
-      credentials: { accessKeyId: opts.accessKeyId, secretAccessKey: opts.secretAccessKey },
+      // Omitted for AWS itself; set for other S3-compatible stores.
+      ...(opts.endpoint ? { endpoint: opts.endpoint } : {}),
+      // Without explicit keys the SDK uses the default chain (e.g. the EC2 instance's IAM role).
+      ...(opts.accessKeyId && opts.secretAccessKey
+        ? { credentials: { accessKeyId: opts.accessKeyId, secretAccessKey: opts.secretAccessKey } }
+        : {}),
     });
   }
 

@@ -246,3 +246,45 @@ src/
   - **Client Managers** enrol their own staff into published _catalogue_ courses (the course's "Who can be enrolled" setting).
   - **Trainers don't enrol:** that would mean browsing every learner on the platform. They see the roster of their own courses, and each roster view is audit-logged.
 - **Staff:** each course has a lead trainer and optional co-trainers. Admins can edit every course.
+
+## 9. Phase 3 (Assessment): what was built and the decisions behind it
+
+- **Storage on AWS:** the S3 driver targets Amazon S3 in **Cape Town (`af-south-1`)** by default.
+  - af-south-1 is an opt-in region: enable it on the AWS account first.
+  - On AWS the server's IAM role is used, so no keys are stored. `S3_ENDPOINT` is only for non-AWS S3-compatible stores.
+  - The bucket needs a CORS rule allowing `PUT` from the app's domain.
+- **Question banks and quizzes:**
+  - Question types: multiple choice, multiple answers, true/false, short answer and matching.
+  - A quiz draws all of a bank, or a random number of questions from it, across one or more banks. Order and options can be shuffled per attempt.
+  - Each attempt stores a snapshot of its questions, so editing a bank later never changes past results.
+  - Answer keys never leave the server while an attempt is open.
+- **Quiz rules:**
+  - Each quiz has a pass mark, an attempt limit and an optional time limit.
+  - Answers autosave, with a copy kept on the device for weak site connections.
+  - An expired attempt is submitted automatically with what was saved in time.
+  - Correct answers are shown after each attempt, after passing, or never.
+- **Marking rules:**
+  - **Multiple answers:** partial credit, with wrong picks taking credit back (never below zero).
+  - **Matching:** credit per correct pair.
+  - **Short answers:** marked against accepted answers, ignoring capitals and spacing. Anything else goes to the trainer instead of being marked wrong.
+  - A quiz's grade is its best fully marked attempt.
+- **Assignments:**
+  - Learners can type an answer, upload files, or both. Files can be documents or phone photos, and are virus-scanned.
+  - Due dates are optional, late work is flagged, and late work can be refused.
+  - An assignment is marked either out of a total or with a **rubric**: criteria × levels, with the total set by the rubric. A rubric is locked once work has been marked with it, and can be duplicated to change it.
+- **Inline marking view:**
+  - The learner's work sits on the left: text, PDF preview, images.
+  - The rubric or mark and the feedback sit on the right: text, a file, and a recorded **audio note** (browser microphone, about 5 minutes, scanned like any file).
+  - Marks can be saved as a private draft, released ("Release & next" moves on to the next learner), or returned for resubmission.
+  - Learners see marks and feedback only once released.
+- **Gradebook:**
+  - One table per course, searchable and filterable: has work to mark, below a pass mark, completed, not started, or by company. It stacks as cards on phones.
+  - Each learner has a page listing their attempts and submissions, with a **grade override** that requires a reason and is audit-logged.
+  - Exports to **CSV** (Excel-safe, with spreadsheet-formula injection neutralised) and **PDF** (A4 landscape, marked as containing personal information). Exports are audit-logged.
+- **Completion:**
+  - A quiz or assignment item counts as done only when its pass mark is reached, either by a grade or an override. The "Mark as complete" button doesn't apply to them.
+  - A course is complete when every required item is done.
+  - Quiz scores feed "minimum score" release conditions, now available in the builder.
+- **Cloning:** creating a course from another course or a template copies its question banks, rubrics and quiz/assignment settings. Due dates are not copied.
+- **Login limit per network** raised from 20 to 100 attempts per 15 minutes. A whole site's learners often share one Wi-Fi address on a training day. Account lockout still stops password guessing.
+- **The database client connects on first use,** so `next build` and Docker image builds need no runtime secrets.

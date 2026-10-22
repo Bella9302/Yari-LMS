@@ -230,6 +230,7 @@ describe("uploads", () => {
     const pdfItem = await addItem(trainer, mod.id, "PDF", "Policy");
     const bytes = Buffer.from("%PDF-1.4\n%test\n");
     const { assetId } = await startUpload(trainer, {
+      purpose: "item",
       courseId: course.id,
       itemId: pdfItem.id,
       filename: "policy.pdf",
@@ -260,7 +261,7 @@ describe("uploads", () => {
   it("rejects disallowed types, oversize files and disguised contents", async () => {
     const { course, mod } = await buildCourse(trainer);
     const pdfItem = await addItem(trainer, mod.id, "PDF", "Policy");
-    const base = { courseId: course.id, itemId: pdfItem.id, filename: "x.exe" };
+    const base = { purpose: "item" as const, courseId: course.id, itemId: pdfItem.id, filename: "x.exe" };
     await expect(
       startUpload(trainer, { ...base, mime: "application/x-msdownload", bytes: 10 }),
     ).rejects.toThrow(UploadError);
@@ -283,6 +284,7 @@ describe("uploads", () => {
     const { course, mod } = await buildCourse(trainer);
     const pdfItem = await addItem(trainer, mod.id, "PDF", "Policy");
     const { assetId } = await startUpload(trainer, {
+      purpose: "item",
       courseId: course.id,
       itemId: pdfItem.id,
       filename: "p.pdf",

@@ -21,11 +21,12 @@ const schema = z.object({
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM: z.string().default("YARI Academy <academy@yarigroup.co.za>"),
 
-  // File storage: "local" (development, single server) or "s3" (Cloudflare R2 / any S3-compatible).
+  // File storage: "local" (development) or "s3" (Amazon S3; any S3-compatible store via S3_ENDPOINT).
   STORAGE_DRIVER: z.enum(["local", "s3"]).default("local"),
   STORAGE_LOCAL_DIR: z.string().default(".storage"),
   S3_ENDPOINT: z.string().url().optional(),
-  S3_REGION: z.string().default("auto"),
+  // Cape Town keeps files in South Africa (an opt-in AWS region: enable it on the account first).
+  S3_REGION: z.string().default("af-south-1"),
   S3_BUCKET: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
@@ -52,8 +53,10 @@ export function env(): Env {
     throw new Error("FIELD_ENC_ACTIVE_KEY does not name a key in FIELD_ENC_KEYS");
   }
   if (parsed.data.STORAGE_DRIVER === "s3") {
-    for (const k of ["S3_ENDPOINT", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY"] as const) {
-      if (!parsed.data[k]) throw new Error(`${k} is required when STORAGE_DRIVER=s3`);
+    if (!parsed.data.S3_BUCKET) throw new Error("S3_BUCKET is required when STORAGE_DRIVER=s3");
+    // Keys are optional: on AWS the server's IAM role is preferred. If one is set, both must be.
+    if (Boolean(parsed.data.S3_ACCESS_KEY_ID) !== Boolean(parsed.data.S3_SECRET_ACCESS_KEY)) {
+      throw new Error("Set both S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY, or neither (to use the IAM role)");
     }
   }
   if (

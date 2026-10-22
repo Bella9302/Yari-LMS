@@ -73,7 +73,9 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   const { email, password, next } = parsed.data;
 
   const ip = (await clientIp()) ?? "unknown";
-  if (!(await consumeRateLimit(`login-ip:${ip}`, 20, 15 * MINUTE))) {
+  // Generous per network: a whole site's learners often sign in from one Wi-Fi address on a
+  // training day. Guessing one account's password is stopped by the per-account lockout.
+  if (!(await consumeRateLimit(`login-ip:${ip}`, 100, 15 * MINUTE))) {
     return { error: "Too many sign-in attempts from this network. Please wait 15 minutes.", values };
   }
 

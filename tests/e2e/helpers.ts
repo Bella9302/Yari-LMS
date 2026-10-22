@@ -35,13 +35,24 @@ export async function signedIn(page: Page, email: string, password: string) {
   await page.waitForURL(/\/(dashboard|setup-2fa|login\/2fa)/);
 }
 
-/** Signs in and completes the TOTP step. */
+/**
+ * Signs in and completes the TOTP step. A code can only be used once (replay protection), so if
+ * this user already signed in during the current 30-second window, wait for the next code.
+ */
 export async function signInWith2fa(page: Page, email: string, password: string, totpKey: string) {
   await signIn(page, email, password);
   await page.waitForURL(/\/login\/2fa/);
-  await page.getByLabel("Verification code").fill(totp(totpKey));
-  await page.getByRole("button", { name: "Verify" }).click();
-  await page.waitForURL(/\/dashboard$/);
+  for (let tries = 0; tries < 2; tries++) {
+    await page.getByLabel("Verification code").fill(totp(totpKey));
+    await page.getByRole("button", { name: "Verify" }).click();
+    const ok = await page
+      .waitForURL(/\/dashboard$/, { timeout: 8000 })
+      .then(() => true)
+      .catch(() => false);
+    if (ok) return;
+    await page.waitForTimeout(30_000 - (Date.now() % 30_000) + 500);
+  }
+  throw new Error("Two-step sign-in failed");
 }
 
 /** No sideways scrolling on phones. */
@@ -52,6 +63,8 @@ export async function expectNoHorizontalScroll(page: Page) {
 
 /** WCAG 2.1 A/AA automated checks. */
 export async function expectAccessible(page: Page) {
+  // Let entrance animations finish so contrast is measured on the final colours.
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running"));
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
