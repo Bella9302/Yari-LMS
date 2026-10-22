@@ -1,0 +1,2 @@
+CREATE DATABASE yari_test OWNER yari;
+CREATE DATABASE yari_e2e OWNER yari;

@@ -1,0 +1,193 @@
+@import "tailwindcss";
+
+/* Dark mode follows data-theme on <html> (set before paint by the theme script). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ------------------------------------------------------------------------
+   Raw palette (brand) + semantic tokens. Components use only the semantic
+   tokens so both themes stay first-class. Contrast pairs are checked in
+   tests/unit/contrast.test.ts.
+   ------------------------------------------------------------------------ */
+:root {
+  --ink: #0b0b0c;
+  --paper: #f7f5f0;
+  --graphite: #2a2a2d;
+  --amber: #e8a33d;
+  --teal: #2fd3b5;
+
+  --bg: var(--paper);
+  --surface: #fdfcf9;
+  --surface-sunk: #efece5;
+  --fg: var(--ink);
+  --fg-muted: #5c5a54;
+  --line: #cfcac0;
+  --line-strong: #7f7b73;
+  --inverse-bg: var(--ink);
+  --inverse-fg: var(--paper);
+  --danger: #9e3b30;
+  --danger-bg: #f4e4e0;
+  --success: #2e6847;
+  --success-bg: #e2eee6;
+  --focus: #0b0b0c;
+
+  /* Category accents: fill colours (use ink text on them) + text-safe variants. */
+  --hs-fill: var(--amber);
+  --hs-text: #8a5a0b;
+  --ai-fill: var(--teal);
+  --ai-text: #0a6b59;
+  --accent-fill: var(--ink);
+  --accent-text: var(--ink);
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --bg: var(--ink);
+  --surface: #151517;
+  --surface-sunk: #070708;
+  --fg: var(--paper);
+  --fg-muted: #a5a29a;
+  --line: #2e2e32;
+  --line-strong: #75736e;
+  --inverse-bg: var(--paper);
+  --inverse-fg: var(--ink);
+  --danger: #e58a7e;
+  --danger-bg: #2a1512;
+  --success: #7dc49b;
+  --success-bg: #11241a;
+  --focus: #f7f5f0;
+  --hs-text: var(--amber);
+  --ai-text: var(--teal);
+  --accent-fill: var(--paper);
+  --accent-text: var(--paper);
+
+  color-scheme: dark;
+}
+
+[data-category="health-safety"] {
+  --accent-fill: var(--hs-fill);
+  --accent-text: var(--hs-text);
+}
+[data-category="ai-digital"] {
+  --accent-fill: var(--ai-fill);
+  --accent-text: var(--ai-text);
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-graphite: var(--graphite);
+  --color-amber: var(--amber);
+  --color-teal: var(--teal);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunk: var(--surface-sunk);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-inverse: var(--inverse-bg);
+  --color-on-inverse: var(--inverse-fg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-accent: var(--accent-fill);
+  --color-accent-text: var(--accent-text);
+  --color-hs: var(--hs-fill);
+  --color-hs-text: var(--hs-text);
+  --color-ai: var(--ai-fill);
+  --color-ai-text: var(--ai-text);
+
+  --font-display: var(--font-gloock), "Times New Roman", serif;
+  --font-sans: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-martian), ui-monospace, monospace;
+
+  /* Editorial type scale (fluid). */
+  --text-display: clamp(2.75rem, 1.6rem + 5.2vw, 6rem);
+  --text-display--line-height: 0.95;
+  --text-display--letter-spacing: -0.02em;
+  --text-h1: clamp(2rem, 1.5rem + 2.4vw, 3.25rem);
+  --text-h1--line-height: 1.05;
+  --text-h1--letter-spacing: -0.015em;
+  --text-h2: clamp(1.5rem, 1.25rem + 1.1vw, 2.125rem);
+  --text-h2--line-height: 1.15;
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.3;
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--letter-spacing: 0.14em;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --animate-rise: rise 0.5s var(--ease-out-quart) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  ::selection {
+    background: var(--accent-fill);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@keyframes ring-fill {
+  from {
+    stroke-dashoffset: var(--ring-c);
+  }
+}
+
+@layer components {
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: var(--text-eyebrow);
+    letter-spacing: var(--text-eyebrow--letter-spacing);
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+}

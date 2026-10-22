@@ -1,0 +1,245 @@
+// YARI Academy — database schema.
+// Conventions:
+//   *Enc   = AES-256-GCM ciphertext produced by src/server/crypto/field-encryption.ts
+//            (AAD binds it to "<Model>.<field>:<rowId>", so rows using encrypted fields
+//            get their id generated in application code before insert).
+//   *Idx   = HMAC-SHA256 blind index (src/server/crypto/blind-index.ts) used for lookup/uniqueness.
+// Phase 1 covers identity, organisations, privacy and audit. Later phases add their own models.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum Role {
+  SUPER_ADMIN
+  TRAINER
+  LEARNER
+  CLIENT_MANAGER
+}
+
+enum IdDocumentType {
+  SA_ID
+  PASSPORT
+}
+
+enum AuthTokenType {
+  INVITE
+  PASSWORD_RESET
+}
+
+enum ConsentPurpose {
+  TERMS
+  PRIVACY
+  MARKETING
+}
+
+enum DataRequestType {
+  EXPORT
+  DELETE
+}
+
+enum DataRequestStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model User {
+  id             String     @id
+  emailEnc       String
+  emailIdx       String     @unique
+  passwordHash   String?
+  status         UserStatus @default(INVITED)
+  totpSecretEnc  String?
+  totpEnabledAt  DateTime?
+  totpLastStep   Int?
+  lastLoginAt    DateTime?
+  failedLogins   Int        @default(0)
+  lockedUntil    DateTime?
+  deletedAt      DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  invitedById    String?
+  invitedBy      User?      @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitees       User[]     @relation("InvitedBy")
+
+  profile        UserProfile?
+  roles          RoleAssignment[]
+  memberships    OrgMembership[]
+  sessions       AuthSession[]
+  recoveryCodes  RecoveryCode[]
+  authTokens     AuthToken[]
+  consents       Consent[]
+  dataRequests   DataRequest[]  @relation("DataRequestUser")
+  handledRequests DataRequest[] @relation("DataRequestHandler")
+}
+
+model UserProfile {
+  userId          String          @id
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullNameEnc     String
+  preferredNameEnc String?
+  idType          IdDocumentType?
+  idNumberEnc     String?
+  idNumberIdx     String?         @unique
+  passportCountry String?         @db.Char(2)
+  phoneEnc        String?
+  addressEnc      String?
+  employerEnc     String?
+  updatedAt       DateTime        @updatedAt
+}
+
+model RoleAssignment {
+  id             String        @id @default(cuid(2))
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           Role
+  // Required for CLIENT_MANAGER (the company they manage); null for platform-wide roles.
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+
+  @@unique([userId, role, organizationId])
+  @@index([organizationId, role])
+}
+
+model Organization {
+  id          String             @id @default(cuid(2))
+  name        String
+  slug        String             @unique
+  regNumber   String?
+  status      OrganizationStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  members     OrgMembership[]
+  roles       RoleAssignment[]
+}
+
+model OrgMembership {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  employeeRefEnc String?
+  department     String?
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model AuthSession {
+  // id is the SHA-256 hash of the cookie token; the raw token is never stored.
+  id                String   @id
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt         DateTime
+  twoFactorVerified Boolean  @default(false)
+  ipHash            String?
+  userAgent         String?
+  createdAt         DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RecoveryCode {
+  id        String    @id @default(cuid(2))
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model AuthToken {
+  // id is the SHA-256 hash of the emailed token.
+  id        String        @id
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
+}
+
+model RateLimitHit {
+  id        String   @id @default(cuid(2))
+  key       String
+  at        DateTime @default(now())
+
+  @@index([key, at])
+}
+
+model Consent {
+  id            String         @id @default(cuid(2))
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose       ConsentPurpose
+  policyVersion String
+  grantedAt     DateTime       @default(now())
+  withdrawnAt   DateTime?
+
+  @@index([userId, purpose])
+}
+
+model DataRequest {
+  id          String            @id @default(cuid(2))
+  userId      String
+  user        User              @relation("DataRequestUser", fields: [userId], references: [id], onDelete: Cascade)
+  type        DataRequestType
+  status      DataRequestStatus @default(PENDING)
+  note        String?
+  handledById String?
+  handledBy   User?             @relation("DataRequestHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+  completedAt DateTime?
+
+  @@index([status])
+}
+
+// Append-only: a database trigger (see migration) rejects UPDATE and DELETE.
+model AuditLog {
+  id         String   @id @default(cuid(2))
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  fields     String[]
+  orgId      String?
+  meta       Json?
+  ipHash     String?
+  at         DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([at])
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

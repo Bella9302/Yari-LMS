@@ -1,0 +1,14 @@
+# Local development database. Production deployment (app, worker, ClamAV, Caddy) is added in Phase 7.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: yari
+      POSTGRES_PASSWORD: yari
+      POSTGRES_DB: yari
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-test-dbs.sql:/docker-entrypoint-initdb.d/init-test-dbs.sql:ro
+volumes:
+  pgdata:

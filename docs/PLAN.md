@@ -1,41 +1,44 @@
 # YARI Academy — Architecture & Data Model (proposal)
 
-Status: **draft for review**. Nothing here is built yet. Open questions are in Section 7; answers will change parts of this document.
+Status: **agreed** (decisions in Section 7). Phase 1 is built.
 
 ---
 
 ## 1. Stack — what I recommend and why
 
-| Concern | Choice | Why (and where it differs from the brief) |
-|---|---|---|
-| Framework | **Next.js 15 (App Router) + TypeScript**, server actions | As suggested. Server components keep JS shipped to phones small. |
-| Styling | **Tailwind CSS v4** with tokens as CSS variables (`@theme`) + **Radix primitives** (headless) | Radix gives accessible dialogs/menus/tabs with zero visual opinion, so the look is fully ours. No shadcn defaults. |
-| DB | **PostgreSQL 16 + Prisma** | As suggested. |
-| Auth | **Own session auth** built on `@oslojs/*` (the approach Lucia now documents), **Argon2id** via `@node-rs/argon2`, **TOTP** via `@oslojs/otp` | *Differs.* Lucia is deprecated. Auth.js and most libraries store email in plain text as the lookup key, which conflicts with our requirement to encrypt email and look it up by blind index. Owning ~400 lines of session code is cheaper than fighting a library. |
-| Background jobs | **pg-boss** (queue in Postgres) | Emails, PDF generation, virus scans, nightly at-risk checks — without running Redis. |
-| Files | **S3-compatible — Cloudflare R2** (no egress fees) with presigned URLs; **ClamAV** scan before a file is released | Cheap, and egress-free matters for video/PDF-heavy training. |
-| Video | **Bunny Stream** (adaptive bitrate, ~US$5/TB) — *to confirm* | Phones on site need low-bitrate HLS; self-transcoding is a maintenance burden. |
-| Email | **Resend** + React Email templates | As suggested. |
-| PDF | **@react-pdf/renderer** server-side | As suggested. |
-| PWA | **Serwist** service worker | Installable, caches shell + fonts. |
-| Tests | **Vitest** (unit/integration against a real test Postgres) + **Playwright** (E2E at 360px and desktop) | As suggested. |
-| Hosting | **One VPS with Docker Compose** (app, Postgres, ClamAV, worker, Caddy for HTTPS) + nightly encrypted off-site backups | *Preferred over Vercel*: ClamAV and long-running jobs don't fit serverless, and a single VPS is ~R300–600/month. An SA region (e.g. Johannesburg) keeps POPIA cross-border questions simple. |
+| Concern         | Choice                                                                                                                                       | Why (and where it differs from the brief)                                                                                                                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Framework       | **Next.js 15 (App Router) + TypeScript**, server actions                                                                                     | As suggested. Server components keep JS shipped to phones small.                                                                                                                                                                                                   |
+| Styling         | **Tailwind CSS v4** with tokens as CSS variables (`@theme`) + **Radix primitives** (headless)                                                | Radix gives accessible dialogs/menus/tabs with zero visual opinion, so the look is fully ours. No shadcn defaults.                                                                                                                                                 |
+| DB              | **PostgreSQL 16 + Prisma**                                                                                                                   | As suggested.                                                                                                                                                                                                                                                      |
+| Auth            | **Own session auth** built on `@oslojs/*` (the approach Lucia now documents), **Argon2id** via `@node-rs/argon2`, **TOTP** via `@oslojs/otp` | _Differs._ Lucia is deprecated. Auth.js and most libraries store email in plain text as the lookup key, which conflicts with our requirement to encrypt email and look it up by blind index. Owning ~400 lines of session code is cheaper than fighting a library. |
+| Background jobs | **pg-boss** (queue in Postgres)                                                                                                              | Emails, PDF generation, virus scans, nightly at-risk checks — without running Redis.                                                                                                                                                                               |
+| Files           | **S3-compatible — Cloudflare R2** (no egress fees) with presigned URLs; **ClamAV** scan before a file is released                            | Cheap, and egress-free matters for video/PDF-heavy training.                                                                                                                                                                                                       |
+| Video           | **Bunny Stream** (adaptive bitrate, ~US$5/TB) — _to confirm_                                                                                 | Phones on site need low-bitrate HLS; self-transcoding is a maintenance burden.                                                                                                                                                                                     |
+| Email           | **Resend** + React Email templates                                                                                                           | As suggested.                                                                                                                                                                                                                                                      |
+| PDF             | **@react-pdf/renderer** server-side                                                                                                          | As suggested.                                                                                                                                                                                                                                                      |
+| PWA             | **Serwist** service worker                                                                                                                   | Installable, caches shell + fonts.                                                                                                                                                                                                                                 |
+| Tests           | **Vitest** (unit/integration against a real test Postgres) + **Playwright** (E2E at 360px and desktop)                                       | As suggested.                                                                                                                                                                                                                                                      |
+| Hosting         | **One VPS with Docker Compose** (app, Postgres, ClamAV, worker, Caddy for HTTPS) + nightly encrypted off-site backups                        | _Preferred over Vercel_: ClamAV and long-running jobs don't fit serverless, and a single VPS is ~R300–600/month. An SA region (e.g. Johannesburg) keeps POPIA cross-border questions simple.                                                                       |
 
 ## 2. Security design
 
 ### 2.1 Field-level encryption
+
 - **AES-256-GCM**, 96-bit random IV per value. Stored format: `v1.<keyId>.<iv>.<ciphertext+tag>` (base64url).
 - **AAD = `table:column:rowId`**, so a ciphertext copied into another row or column fails to decrypt.
 - Keys come from env (`FIELD_ENC_KEYS` = JSON of `{keyId: base64key}` + `FIELD_ENC_ACTIVE_KEY`), so key rotation is a background re-encrypt job, not a migration. The interface lets KMS replace env later.
 - Encryption is **explicit in a data-access layer** (`src/server/pii/*`), not hidden Prisma middleware, so every decrypt is a deliberate, audit-logged call.
 
 ### 2.2 Blind indexes
+
 - `HMAC-SHA256(BLIND_INDEX_KEY, normalise(value))`, with a separate key from the encryption keys.
 - Email is normalised to trimmed lower case; SA ID to digits only.
 - Unique constraints sit on the index columns.
 - Trade-off: you **cannot do partial / "contains" search on encrypted names**. Roster search will decrypt the (already permission-scoped) list in the app and filter there. That is fine at YARI's scale (hundreds to low thousands of learners per view).
 
 ### 2.3 Other controls
+
 - **Sessions:** random 160-bit token in an `HttpOnly; Secure; SameSite=Lax` cookie, stored only as a SHA-256 hash. 30-day sliding expiry, rotated on privilege change.
 - **CSRF:** server actions check Origin; route handlers use a double-submit token.
 - **Login rate limiting:** per IP and per account blind index, with exponential back-off, stored in Postgres.
@@ -49,6 +52,7 @@ Status: **draft for review**. Nothing here is built yet. Open questions are in S
 `🔒` = AES-GCM ciphertext, `#` = blind index (unique), `→` = FK. All tables have `id` (cuid2), `createdAt` and `updatedAt`.
 
 ### Identity, roles, privacy
+
 ```
 User            email🔒, emailIdx#, passwordHash(argon2id), status(INVITED|ACTIVE|SUSPENDED|DELETED),
                 totpSecret🔒?, totpEnabledAt?, lastLoginAt, deletedAt?
@@ -65,12 +69,14 @@ AuditLog        actorId?, action, entityType, entityId, fields[], orgId?, ipHash
 ```
 
 ### Client companies
+
 ```
 Organization    name, slug, regNumber?, status
 OrgMembership   →Organization, →User, employeeRef🔒?, department?   (a learner's employer link; drives isolation)
 ```
 
 ### Content
+
 ```
 Course          slug, title, summary, category(HEALTH_SAFETY|AI_DIGITAL), status(DRAFT|PUBLISHED|ARCHIVED),
                 isTemplate, templateSourceId?, coverAssetId?, estMinutes, visibility(PUBLIC|PRIVATE|ORG_ONLY),
@@ -88,6 +94,7 @@ ItemProgress    →Enrolment, →Item, status(NOT_STARTED|IN_PROGRESS|COMPLETED)
 ```
 
 ### Assessment
+
 ```
 QuestionBank    →Course, title
 Question        →QuestionBank, type(MCQ|MULTI_SELECT|TRUE_FALSE|SHORT_ANSWER|MATCHING), prompt(JSON),
@@ -105,9 +112,11 @@ Mark            →Submission, →User(grader), score, rubricSelections(JSON), f
                 feedbackAssetId?, audioAssetId?, status(DRAFT|RELEASED), releasedAt?
 GradeOverride   →Enrolment, →Item, score, reason, →User   (audited)
 ```
+
 The gradebook is a **view** computed from QuizAttempt, Mark and GradeOverride, so there is no duplicated grade table to drift out of sync.
 
 ### Tracking
+
 ```
 LiveSession     →Course, →User(trainer), title, mode(IN_PERSON|ONLINE|HYBRID), startsAt, endsAt,
                 location?, meetingUrl?, qrSecret
@@ -115,9 +124,11 @@ Attendance      →LiveSession, →User, method(QR|MANUAL), checkedInAt, →User
 AtRiskRule      →Course, type(INACTIVE_DAYS|MISSED_DEADLINE|SCORE_BELOW), threshold, active, →User(createdBy)
 AtRiskFlag      →AtRiskRule, →Enrolment, raisedAt, resolvedAt?, resolvedById?, note?
 ```
+
 QR codes rotate every 30 seconds (an HMAC of session id + time window) and work only while the session is live. A screenshot shared by WhatsApp therefore expires almost at once.
 
 ### Engagement
+
 ```
 TrainerRating   →User(trainer), →User(rater), →Course, →LiveSession?, knowledge, clarity, relevance,
                 engagement (1–5), comment?, createdAt         unique(rater, trainer, course, session)
@@ -128,9 +139,11 @@ Notification    →User, type, payload(JSON), readAt?
 Badge           code, name, description, icon, criteria(JSON)
 UserBadge       →User, →Badge, awardedAt, →Course?
 ```
+
 Rating anonymity: trainers see only aggregates, and only once **≥3 ratings** exist for a course or session. Comments are shown shuffled and without dates, so a learner can't be identified by timing. Admin sees everything.
 
 ### Certificates, public site, settings
+
 ```
 CertificateTemplate name, layout(JSON), disclaimerText (non-editable default), accreditationEnabled=false,
                     providerNumber?, unitStandards[]?, nqfLevel?, credits?
@@ -139,6 +152,7 @@ Certificate     →Enrolment, →CertificateTemplate, code#(e.g. YG-7K3M-Q9TP), 
 Enquiry         name🔒, email🔒, phone🔒?, company?, interest(SHE|TECH|BOTH), message, consentAt, status
 PlatformSetting key, value(JSON)   e.g. brandName="YARI Academy", accreditation flags, at-risk defaults
 ```
+
 The certificate disclaimer is always rendered when `accreditationEnabled` is false. The template cannot hide it, and a test enforces this.
 
 ## 4. App structure
@@ -177,6 +191,23 @@ src/
 8. Consent capture at registration and a privacy notice page (placeholder text for YARI to supply).
 9. Tests: unit (crypto, RBAC), integration (tenant isolation, audit entries), E2E (login + 2FA at 360px).
 
-## 7. Open questions
+## 7. Decisions (2026-10-22)
 
-See the chat summary. Answers will be recorded here.
+| Topic                     | Decision                                                                                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hosting                   | One VPS in a South African region (Docker Compose).                                                                                                                                                                                                  |
+| Sign-up                   | **Invite-only.** Client Managers invite learners into their company. Super Admins can invite anyone, including individual learners with no company.                                                                                                  |
+| Identity documents        | SA ID number for South Africans, and passport number + issuing country for foreign nationals. **Required for learners**, optional for other roles. SA IDs are checked (date + Luhn).                                                                 |
+| Certificate verification  | The public page shows the learner's **full name**, course and date. The privacy notice says so.                                                                                                                                                      |
+| Course completion         | All required items done **and** a pass mark on quizzes and assignments.                                                                                                                                                                              |
+| Client Manager visibility | Default: progress, completion, pass/fail and final scores for their own staff. Not submission content or trainer feedback. ID numbers are masked.                                                                                                    |
+| Brand                     | The "YG" monogram traced from the business card (`public/brand/yg-monogram.svg`). Email domain `yarigroup.co.za`.                                                                                                                                    |
+| Information Officer       | None appointed yet. Under POPIA the head of the business is the Information Officer by default. The privacy notice uses `privacy@yarigroup.co.za` as a placeholder. Must be confirmed, and registered with the Information Regulator, before launch. |
+| Language                  | English only for now.                                                                                                                                                                                                                                |
+| Video, everything else    | Defaults from this document (Bunny Stream, R2, Resend, etc.).                                                                                                                                                                                        |
+
+### Still to confirm (not blocking)
+
+- Does the `privacy@yarigroup.co.za` mailbox exist? Who will act as Information Officer?
+- The business card says "SACPCMP registered". Should the landing page show this as a credential of the consultancy, kept clearly separate from the (non-accredited) training?
+- Which contact details go on the public site: the card's numbers and Gmail address, or a new `@yarigroup.co.za` address?
