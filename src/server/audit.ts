@@ -55,7 +55,12 @@ export type AuditAction =
   | "announcement.posted"
   | "discussion.moderated"
   | "rating.submitted"
-  | "ratings.viewed";
+  | "ratings.viewed"
+  | "certificate.issued"
+  | "certificate.revoked"
+  | "certificate.downloaded"
+  | "enquiry.received"
+  | "enquiry.updated";
 
 export interface AuditEntry {
   actorId: string | null;

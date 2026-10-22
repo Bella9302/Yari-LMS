@@ -57,6 +57,14 @@ export default async function StaffTrainingPage({
                     {c.sessions.held > 0 &&
                       ` · attended ${c.sessions.attended} of ${c.sessions.held} sessions`}
                   </p>
+                  {c.certificateCode && (
+                    <a
+                      href={`/certificates/${c.certificateCode}`}
+                      className="mt-1 inline-block text-sm underline underline-offset-4"
+                    >
+                      Certificate {c.certificateCode} (PDF)
+                    </a>
+                  )}
                 </div>
                 <TrainingStateTag state={c.state} />
               </div>

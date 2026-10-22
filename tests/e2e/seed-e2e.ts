@@ -90,8 +90,11 @@ async function main() {
       data: {
         slug: `working-at-heights-${project}`,
         title: `Working at Heights ${project}`,
+        summary: "Harness checks, ladder safety and rescue planning for anyone who works above two metres.",
         category: "HEALTH_SAFETY",
         status: "PUBLISHED",
+        visibility: "PUBLIC",
+        estMinutes: 480,
         publishedAt: new Date(),
         staff: { create: { userId: facilitator.id, role: "LEAD" } },
         enrolments: { create: { userId: student.id, source: "ADMIN", organizationId: orgA.id } },
@@ -114,8 +117,35 @@ async function main() {
       },
     });
 
+    // A course the student already finished (Phase 6: certificates), listed publicly.
+    const aiCourse = await db.course.create({
+      data: {
+        slug: `ai-at-work-${project}`,
+        title: `AI at Work ${project}`,
+        summary: "Using AI assistants safely and well in everyday work.",
+        category: "AI_DIGITAL",
+        status: "PUBLISHED",
+        visibility: "PUBLIC",
+        publishedAt: new Date(),
+        estMinutes: 240,
+        staff: { create: { userId: facilitator.id, role: "LEAD" } },
+        modules: { create: { title: "Getting started", position: 0 } },
+        enrolments: {
+          create: {
+            userId: student.id,
+            source: "ADMIN",
+            organizationId: orgA.id,
+            status: "COMPLETED",
+            progressPct: 100,
+            completedAt: new Date(Date.now() - 86_400_000),
+          },
+        },
+      },
+    });
+
     fixtures[project] = {
       heights: { id: heights.id, slug: heights.slug, title: heights.title },
+      aiAtWork: { slug: aiCourse.slug, title: aiCourse.title },
       facilitator: { email: facilitator.email, totpKey: facilitatorKey },
       admin: { email: admin.email, totpKey: key.toString("base64") },
       trainer: { email: trainer.email },

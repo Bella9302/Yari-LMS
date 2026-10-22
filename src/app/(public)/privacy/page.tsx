@@ -60,8 +60,17 @@ export default function PrivacyPage() {
           <h2>Certificates</h2>
           <p>
             Each certificate has a verification code. Anyone with the code can confirm that the certificate is
-            genuine and see the name on it, the course and the date. Certificates are records of attendance
-            and completion, not accredited qualifications.
+            genuine and see the name on it, the course and the date. Search engines are asked not to index
+            these pages, and if your account is deleted your certificates stop verifying and your name is
+            removed. Certificates are records of attendance and completion, not accredited qualifications.
+          </p>
+        </section>
+        <section>
+          <h2>Enquiries</h2>
+          <p>
+            If you use the enquiry form, we keep your name, contact details and message only to reply to you
+            and arrange training. They are encrypted, seen only by YARI administrators, and deleted 12 months
+            after your enquiry was last dealt with.
           </p>
         </section>
         <section>

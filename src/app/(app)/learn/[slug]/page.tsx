@@ -12,6 +12,7 @@ import { ProgressRing } from "@/ui/progress-ring";
 import { upcomingSessionsFor } from "@/server/tracking/sessions";
 import { SessionList } from "@/ui/session-list";
 import { courseAnnouncements } from "@/server/engagement/announcements";
+import { certificateForEnrolment } from "@/server/certificates/service";
 
 export const metadata: Metadata = { title: "Course" };
 
@@ -26,6 +27,8 @@ export default async function CourseOutlinePage({ params }: { params: Promise<{ 
     courseAnnouncements(course.id),
   ]);
   const latest = announcements[0];
+  const certificate =
+    enrolment?.status === "COMPLETED" ? await certificateForEnrolment(user.id, course.id) : null;
   const total = modules.reduce((n, m) => n + m.items.length, 0);
 
   return (
@@ -63,7 +66,15 @@ export default async function CourseOutlinePage({ params }: { params: Promise<{ 
 
       {enrolment?.status === "COMPLETED" && (
         <Notice tone="success" title="Course completed">
-          Well done. You can come back to the material at any time.
+          <p>Well done. You can come back to the material at any time.</p>
+          {certificate && (
+            <a
+              href={`/certificates/${certificate.code}`}
+              className={buttonClasses("secondary", "md", "mt-3")}
+            >
+              Download your certificate
+            </a>
+          )}
         </Notice>
       )}
 

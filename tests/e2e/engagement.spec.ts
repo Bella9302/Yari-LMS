@@ -23,7 +23,7 @@ test("the learner sees it, rates the trainer and starts a discussion", async ({ 
   await signedIn(page, f.student.email, f.password);
   await expect(page.getByRole("link", { name: /Bring your own harness on Friday/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Rate your trainer" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Notifications, \d+ unread/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Notifications, \d\+? unread/ })).toBeVisible();
   await expectAccessible(page);
   await expectNoHorizontalScroll(page);
 

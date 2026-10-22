@@ -3,6 +3,7 @@ import type { CourseCategory, ItemType, ProgressStatus } from "@/generated/prism
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
 import { awardBadges } from "@/server/engagement/badges";
+import { issueCertificate } from "@/server/certificates/service";
 import { canEditCourse } from "@/server/courses/access";
 import { evaluateRules, progressPercent, type LockState, type ProgressLike } from "@/server/courses/release";
 import type { Actor } from "@/server/pii/users";
@@ -329,6 +330,12 @@ export async function recomputeEnrolment(enrolmentId: string) {
       entityType: "Enrolment",
       entityId: enrolmentId,
     });
+    try {
+      await issueCertificate(enrolmentId);
+    } catch (err) {
+      // Completion stands; the nightly job issues any certificate that failed here.
+      console.error("[certificate] issue failed", enrolmentId, err);
+    }
   }
   return { progressPct, courseCompleted: justCompleted || enrolment.status === "COMPLETED" };
 }

@@ -148,15 +148,18 @@ Rating anonymity: trainers see only aggregates, and only once **≥3 ratings** e
 ### Certificates, public site, settings
 
 ```
-CertificateTemplate name, layout(JSON), disclaimerText (non-editable default), accreditationEnabled=false,
-                    providerNumber?, unitStandards[]?, nqfLevel?, credits?
-Certificate     →Enrolment, →CertificateTemplate, code#(e.g. YG-7K3M-Q9TP), issuedAt, revokedAt?, revokeReason?,
-                snapshot(JSON: course title, hours, trainer, learner display name🔒), pdfAssetId
-Enquiry         name🔒, email🔒, phone🔒?, company?, interest(SHE|TECH|BOTH), message, consentAt, status
-PlatformSetting key, value(JSON)   e.g. brandName="YARI Academy", accreditation flags, at-risk defaults
+Certificate     code# (YG-XXXX-XXXX), →Enrolment?, →User?, →Course?, holderEnc🔒 (learner name + trainers,
+                bound to the code), courseTitle, category, durationMinutes, completedAt, issuedAt,
+                accreditation(JSON)?, revokedAt?, →User(revokedBy)?, revokeReason?
+                one active certificate per enrolment (partial unique); revocation requires a reason (CHECK)
+Enquiry         name🔒, email🔒, phone🔒?, company?, interest(SHE|TECH|BOTH), →Course?, message🔒, consentAt,
+                status(NEW|CONTACTED|CLOSED), →User(handledBy)?
+Course          + accreditation(JSON)?: unitStandards[], nqfLevel?, credits?
+PlatformSetting "site" {academyName, contactEmail, contactPhone}
+                "accreditation" {enabled=false, body, providerNumber}
 ```
 
-The certificate disclaimer is always rendered when `accreditationEnabled` is false. The template cannot hide it, and a test enforces this.
+The certificate prints the non-accreditation statement unless all three are true: platform accreditation is on, the provider details are filled in, and the course lists unit standards. No template or course setting can hide it, and tests enforce this. Certificates are rendered from their frozen snapshot on each download, rather than stored as files.
 
 ## 4. App structure
 
@@ -372,3 +375,49 @@ src/
 
 - **Calendar subscription:** a live calendar feed (a secret per-user URL) would save re-downloading the `.ics` file. It is deferred because the URL is effectively a password.
 - **Discussion formatting:** posts are plain text for now. Attachments and rich text in discussions can come later if trainers ask for them.
+
+## 12. Phase 6 (Certificates & public site): what was built and the decisions behind it
+
+- **Certificates of Completion:**
+  - **Issued automatically** when a course completes (all required items done and pass marks met). The learner gets a notification and an email.
+  - **Catching up:** courses completed before Phase 6, or any issue that failed, are caught by the nightly job, and on the learner's Certificates page.
+  - **Code:** each certificate has a code like `YG-7K3M-Q9TP`. The alphabet has no 0/O, 1/I/L or U, and there are about 6.5 × 10¹¹ possible codes.
+  - **Frozen details:** everything printed is frozen at issue time: the learner's name, course title, trainers, course length, completion date and accreditation. Renaming a course later doesn't change issued certificates.
+  - **PDF:** A4 landscape in the brand fonts (bundled, under the SIL Open Font License), with the YG monogram, a category accent and a QR code linking to the public check. The non-accreditation statement is set in bold beside the QR code, not hidden in small print.
+  - **Who can download the PDF** (`/certificates/[code]`): the holder, a Super Admin, or a Client Manager of the company that enrolled the learner. Downloads by anyone other than the holder are audit-logged. Revoked certificates can't be downloaded.
+  - **Where to find them:** learners have Account → Certificates and a button on a completed course. Client Managers have a link on each staff member's page.
+- **Public verification** (`/verify`, `/verify/[code]`):
+  - Accepts codes typed off paper (lower case, spaces, with or without "YG").
+  - Shows the holder's full name (as agreed), the course, the dates, the issuer and the statement.
+  - It never shows trainers, contact details or why a certificate was revoked.
+  - Lookups are limited to 60 per 15 minutes per connection. Result pages are `noindex`, and `robots.txt` excludes them.
+- **Administration:**
+  - `/admin/certificates`: search by code or course, see the public page or PDF, **revoke** (a reason is required, audited, and never shown publicly), or **reissue** (e.g. after a name correction: the old code stops verifying and a new one is issued).
+  - **Account erasure:** `eraseCertificateHolder(userId)` revokes the person's certificates and erases their name. Phase 7 wires it into account deletion.
+- **Accreditation, ready for later:**
+  - `/admin/settings` has the switch, the accrediting body and the provider number. Switching it on needs an explicit confirmation and is audited.
+  - Once it's on, a Super Admin can add unit standards, NQF level and credits to a course (in course Settings).
+  - Only _new_ certificates for such courses carry the accreditation block. Everything else keeps the statement.
+- **Platform settings:** the platform name and public contact email and phone are editable at `/admin/settings`. They are validated on every read and fall back to defaults if a stored value is bad.
+- **Public site:**
+  - **Landing page** (`/`): a type-led hero with the YG monogram, then the two practices:
+    - **SHE:** Safety files; Housekeeping and rubble cleaning; Department of Employment and Labour visit preparation; Site visits; Auditing; Incident investigation; SHE management systems; Environmental compliance; SHE rep practical training.
+    - **Tech & IT:** AI adoption training; Digital migration; IT support and training.
+
+    After the services come "how it works for companies" (on black, echoing the business card), a catalogue preview, a plain statement about certificates, and the enquiry form.
+
+  - **Catalogue** (`/courses`, `/courses/[slug]`): published courses marked _Public_, filterable by category. The course page shows the module and item outline (titles only, never content), length, an "Enquire about this course" button and the certificate statement. There is no self-enrolment: enrolment stays invite-only, as agreed.
+  - **Enquiry form** (`/enquire`, and on the landing page):
+    - **Fields:** name, email, optional phone and company, interest, optional course, message, and POPIA consent with a link to the privacy notice.
+    - **Spam protection:** a hidden honeypot field and a limit of 5 enquiries per hour per connection.
+    - **Storage:** the name, contact details and message are encrypted.
+    - **Who is told:** Super Admins get an in-app notification and an email that contains no personal details.
+    - **Inbox:** `/admin/enquiries` lists enquiries (each view is audit-logged), with New / Contacted / Closed status and "delete now".
+    - **Retention:** enquiries are deleted automatically 12 months after they were last updated.
+  - **Site extras:** a sitemap, a robots file, and a fuller public footer. On phones, the main links sit in a second header row rather than behind a menu button.
+- **Privacy notice:** new sections on enquiries and on what happens to certificates when an account is deleted.
+
+**Decisions to confirm later:**
+
+- **Contact details:** the public email and phone are blank until set in Settings; I didn't guess them.
+- **Course pages:** only courses marked _Public_ in course Settings appear in the catalogue. The two templates are not listed. Phase 7's demo data will publish the two demo courses.

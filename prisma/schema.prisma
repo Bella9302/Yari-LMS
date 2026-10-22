@@ -81,30 +81,33 @@ model User {
   invitedBy     User?      @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
   invitees      User[]     @relation("InvitedBy")
 
-  profile            UserProfile?
-  roles              RoleAssignment[]
-  memberships        OrgMembership[]
-  sessions           AuthSession[]
-  recoveryCodes      RecoveryCode[]
-  authTokens         AuthToken[]
-  consents           Consent[]
-  dataRequests       DataRequest[]      @relation("DataRequestUser")
-  handledRequests    DataRequest[]      @relation("DataRequestHandler")
-  courseStaff        CourseStaff[]
-  enrolments         Enrolment[]
-  uploads            Asset[]
-  marks              Mark[]
-  gradeOverrides     GradeOverride[]
-  sessionsLed        LiveSession[]
-  attendance         Attendance[]       @relation("AttendanceLearner")
-  attendanceRecorded Attendance[]       @relation("AttendanceRecorder")
-  ratingsReceived    TrainerRating[]    @relation("RatedTrainer")
-  ratingsGiven       TrainerRating[]    @relation("Rater")
-  announcements      Announcement[]
-  threads            DiscussionThread[]
-  posts              DiscussionPost[]
-  notifications      Notification[]
-  badges             UserBadge[]
+  profile             UserProfile?
+  roles               RoleAssignment[]
+  memberships         OrgMembership[]
+  sessions            AuthSession[]
+  recoveryCodes       RecoveryCode[]
+  authTokens          AuthToken[]
+  consents            Consent[]
+  dataRequests        DataRequest[]      @relation("DataRequestUser")
+  handledRequests     DataRequest[]      @relation("DataRequestHandler")
+  courseStaff         CourseStaff[]
+  enrolments          Enrolment[]
+  uploads             Asset[]
+  marks               Mark[]
+  gradeOverrides      GradeOverride[]
+  sessionsLed         LiveSession[]
+  attendance          Attendance[]       @relation("AttendanceLearner")
+  attendanceRecorded  Attendance[]       @relation("AttendanceRecorder")
+  ratingsReceived     TrainerRating[]    @relation("RatedTrainer")
+  ratingsGiven        TrainerRating[]    @relation("Rater")
+  announcements       Announcement[]
+  threads             DiscussionThread[]
+  posts               DiscussionPost[]
+  notifications       Notification[]
+  badges              UserBadge[]
+  certificates        Certificate[]      @relation("CertificateHolder")
+  certificatesRevoked Certificate[]      @relation("CertificateRevoker")
+  enquiriesHandled    Enquiry[]          @relation("EnquiryHandler")
 }
 
 model UserProfile {
@@ -356,6 +359,9 @@ model Course {
   coverAssetId     String?
   coverAsset       Asset?           @relation("CourseCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
   estMinutes       Int?
+  // Unit standards, NQF level and credits. Only printed on certificates once platform
+  // accreditation is switched on (see src/lib/certificates.ts); ignored until then.
+  accreditation    Json?
   // Reserved for future payments (out of scope for now).
   priceCents       Int?
   currency         String?          @db.Char(3)
@@ -375,6 +381,8 @@ model Course {
   announcements Announcement[]
   threads       DiscussionThread[]
   badges        UserBadge[]
+  certificates  Certificate[]
+  enquiries     Enquiry[]
 
   @@index([status, isTemplate])
 }
@@ -501,6 +509,7 @@ model Enrolment {
   submissions    Submission[]
   overrides      GradeOverride[]
   atRiskFlags    AtRiskFlag[]
+  certificates   Certificate[]
 
   @@unique([userId, courseId])
   @@index([courseId, status])
@@ -889,6 +898,8 @@ enum NotificationType {
   DISCUSSION_THREAD
   MARK_RELEASED
   BADGE
+  CERTIFICATE
+  ENQUIRY
 }
 
 // A learner's rating of one trainer, for a course (sessionId null) or a session.
@@ -989,4 +1000,73 @@ model UserBadge {
   awardedAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6: certificates and the public site
+// ---------------------------------------------------------------------------
+
+// A Certificate of Completion. Everything printed on it is frozen at issue time, so it reads
+// the same years later even if the course is renamed. One active certificate per enrolment
+// (partial unique index in the migration).
+model Certificate {
+  id              String         @id @default(cuid(2))
+  // Public verification code, e.g. YG-7K3M-Q9TP.
+  code            String         @unique
+  enrolmentId     String?
+  enrolment       Enrolment?     @relation(fields: [enrolmentId], references: [id], onDelete: SetNull)
+  userId          String?
+  user            User?          @relation("CertificateHolder", fields: [userId], references: [id], onDelete: SetNull)
+  courseId        String?
+  course          Course?        @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  // AES-GCM JSON { learnerName, trainers[] }, bound to the code. Erased if the holder's account is.
+  holderEnc       String?
+  courseTitle     String
+  category        CourseCategory
+  durationMinutes Int?
+  completedAt     DateTime
+  issuedAt        DateTime       @default(now())
+  // Accreditation printed on this certificate; null = not accredited (the disclaimer is printed).
+  accreditation   Json?
+  revokedAt       DateTime?
+  revokedById     String?
+  revokedBy       User?          @relation("CertificateRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokeReason    String?
+
+  @@index([userId])
+  @@index([courseId])
+}
+
+enum EnquiryInterest {
+  SHE
+  TECH
+  BOTH
+}
+
+enum EnquiryStatus {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+// From the public enquiry form. Contact details and the message are encrypted; enquiries are
+// deleted 12 months after they are closed or last updated (nightly job).
+model Enquiry {
+  id          String          @id @default(cuid(2))
+  nameEnc     String
+  emailEnc    String
+  phoneEnc    String?
+  company     String?
+  interest    EnquiryInterest
+  courseId    String?
+  course      Course?         @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  messageEnc  String
+  consentAt   DateTime
+  status      EnquiryStatus   @default(NEW)
+  handledById String?
+  handledBy   User?           @relation("EnquiryHandler", fields: [handledById], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([status, createdAt])
 }

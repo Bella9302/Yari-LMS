@@ -91,7 +91,7 @@ test("the company manager sees training status and exports the compliance report
   await expectAccessible(page);
 
   await page.getByRole("link", { name: "Compliance report" }).click();
-  const pdfHref = await page.getByRole("link", { name: "PDF" }).getAttribute("href");
+  const pdfHref = await page.getByRole("link", { name: "PDF", exact: true }).getAttribute("href");
   const pdf = await page.request.get(pdfHref!);
   expect(pdf.headers()["content-type"]).toBe("application/pdf");
   const csv = await page.request.get(pdfHref!.replace("pdf", "csv"));

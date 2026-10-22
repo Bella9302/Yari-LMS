@@ -38,4 +38,14 @@ Open the printed invitation link, set a password, and enrol your authenticator a
 
 ## Scheduled jobs
 
-Run `npm run jobs:nightly` once a day (for example 02:00 SAST via cron). It re-checks at-risk alerts, emails trainers a count of newly flagged learners, and cleans up expired sessions and tokens.
+Run `npm run jobs:nightly` once a day (for example 02:00 SAST via cron). It does the following:
+
+- re-checks at-risk alerts;
+- emails trainers a count of newly flagged learners;
+- issues any certificates that are still missing;
+- deletes enquiries older than 12 months;
+- cleans up expired sessions and tokens.
+
+## Certificates
+
+Certificates are issued on course completion and verified publicly at `/verify`. They always state that they are not an accredited qualification. To print accreditation details later, a Super Admin turns on accreditation in **Admin → Settings** and adds unit standards in each course's **Settings**. No code change is needed. The PDF fonts are bundled in `src/server/pdf/fonts` (SIL Open Font License).

@@ -119,6 +119,7 @@ export async function getStaffTraining(actor: Actor, orgId: string, userId: stri
     where: { organizationId: orgId, userId, status: { not: "WITHDRAWN" } },
     orderBy: { createdAt: "desc" },
     include: {
+      certificates: { where: { revokedAt: null }, select: { code: true } },
       course: {
         select: {
           id: true,
@@ -187,6 +188,7 @@ export async function getStaffTraining(actor: Actor, orgId: string, userId: stri
       dueAt: e.dueAt,
       completedAt: e.completedAt,
       lastActiveAt: e.lastActiveAt,
+      certificateCode: e.certificates[0]?.code ?? null,
       sessions: {
         held: e.course.sessions.length,
         attended: e.course.sessions.filter((s) => attended.has(s.id)).length,

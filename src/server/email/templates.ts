@@ -59,3 +59,41 @@ export function passwordResetEmail(opts: { to: string; url: string }): EmailMess
     ),
   };
 }
+
+export function certificateEmail(opts: {
+  to: string;
+  name: string;
+  course: string;
+  url: string;
+}): EmailMessage {
+  return {
+    to: opts.to,
+    subject: `Your certificate: ${opts.course}`,
+    text: `Well done, ${opts.name}.\n\nYou've completed ${opts.course}. Download your Certificate of Completion here:\n${opts.url}\n\nThis is a record of attendance and completion. It is not an accredited qualification.`,
+    html: layout(
+      `Well done, ${escapeHtml(opts.name)}`,
+      `<p>You've completed <strong>${escapeHtml(opts.course)}</strong>. Your Certificate of Completion is ready.</p>${button(opts.url, "Get your certificate")}
+<p style="font-size:13px;color:#5A5852">This is a record of attendance and completion. It is not an accredited qualification.</p>`,
+    ),
+  };
+}
+
+export function enquiryEmail(opts: {
+  to: string;
+  from: string;
+  interest: string;
+  course: string | null;
+  url: string;
+}): EmailMessage {
+  // Contact details stay in the platform: the email only says there is something to answer.
+  const what = `${opts.interest}${opts.course ? ` · ${opts.course}` : ""}`;
+  return {
+    to: opts.to,
+    subject: `New enquiry: ${what}`,
+    text: `A new enquiry has come in from ${opts.from} (${what}).\nRead and answer it here:\n${opts.url}`,
+    html: layout(
+      "New enquiry",
+      `<p>A new enquiry has come in from ${escapeHtml(opts.from)} (${escapeHtml(what)}).</p>${button(opts.url, "Open the enquiry")}`,
+    ),
+  };
+}

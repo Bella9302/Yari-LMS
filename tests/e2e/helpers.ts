@@ -13,6 +13,7 @@ interface ProjectFixtures {
   invite: { token: string; email: string; idNumber: string };
   heights: { id: string; slug: string; title: string };
   facilitator: { email: string; totpKey: string };
+  aiAtWork: { slug: string; title: string };
 }
 
 export function fixtures(testInfo: TestInfo): ProjectFixtures & { password: string; orgA: string } {

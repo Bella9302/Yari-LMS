@@ -99,7 +99,8 @@ export function AppShell({
             </Link>
             <Link
               href="/notifications"
-              aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+              // The name repeats the badge text ("9+") so voice-control users can say what they see.
+              aria-label={unread ? `Notifications, ${unread > 9 ? "9+" : unread} unread` : "Notifications"}
               aria-current={isActive("/notifications") ? "page" : undefined}
               className={cn(
                 "hover:bg-sunk relative inline-grid size-11 place-items-center rounded-sm",
