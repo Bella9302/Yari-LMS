@@ -2,6 +2,7 @@ import "server-only";
 import type { CourseCategory, ItemType, ProgressStatus } from "@/generated/prisma/client";
 import { db } from "@/server/db";
 import { audit } from "@/server/audit";
+import { awardBadges } from "@/server/engagement/badges";
 import { canEditCourse } from "@/server/courses/access";
 import { evaluateRules, progressPercent, type LockState, type ProgressLike } from "@/server/courses/release";
 import type { Actor } from "@/server/pii/users";
@@ -319,6 +320,8 @@ export async function recomputeEnrolment(enrolmentId: string) {
       ...(justCompleted ? { status: "COMPLETED", completedAt: now } : {}),
     },
   });
+  // Any progress can complete a milestone (first item, course, on time…).
+  await awardBadges(enrolment.userId);
   if (justCompleted) {
     await audit({
       actorId: enrolment.userId,

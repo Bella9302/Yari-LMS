@@ -4,13 +4,14 @@ import { notFound } from "next/navigation";
 import { CheckCircle2, Circle, CircleDot, Lock } from "lucide-react";
 import { requireUser } from "@/server/guards";
 import { getLearnerCourse, type OutlineItem } from "@/server/courses/learner";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { buttonClasses } from "@/ui/button";
 import { ITEM_TYPE_META } from "@/ui/item-type";
 import { CategoryTag, Notice, Tag } from "@/ui/primitives";
 import { ProgressRing } from "@/ui/progress-ring";
 import { upcomingSessionsFor } from "@/server/tracking/sessions";
 import { SessionList } from "@/ui/session-list";
+import { courseAnnouncements } from "@/server/engagement/announcements";
 
 export const metadata: Metadata = { title: "Course" };
 
@@ -20,7 +21,11 @@ export default async function CourseOutlinePage({ params }: { params: Promise<{ 
   const data = await getLearnerCourse({ id: user.id, roles: user.roles }, slug);
   if (!data) notFound();
   const { course, enrolment, modules, nextItemId, preview } = data;
-  const sessions = enrolment ? await upcomingSessionsFor(user.id, { courseId: course.id }) : [];
+  const [sessions, announcements] = await Promise.all([
+    enrolment ? upcomingSessionsFor(user.id, { courseId: course.id }) : Promise.resolve([]),
+    courseAnnouncements(course.id),
+  ]);
+  const latest = announcements[0];
   const total = modules.reduce((n, m) => n + m.items.length, 0);
 
   return (
@@ -60,6 +65,25 @@ export default async function CourseOutlinePage({ params }: { params: Promise<{ 
         <Notice tone="success" title="Course completed">
           Well done. You can come back to the material at any time.
         </Notice>
+      )}
+
+      <nav aria-label="Course community" className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        <Link href={`/learn/${course.slug}/announcements`} className="underline underline-offset-4">
+          Announcements{announcements.length ? ` (${announcements.length})` : ""}
+        </Link>
+        <Link href={`/learn/${course.slug}/discussions`} className="underline underline-offset-4">
+          Discussions
+        </Link>
+      </nav>
+
+      {latest && (
+        <Link
+          href={`/learn/${course.slug}/announcements`}
+          className="border-accent hover:bg-sunk block border-l-2 py-2 pr-2 pl-4"
+        >
+          <span className="eyebrow">Latest announcement · {formatDateTime(latest.createdAt)}</span>
+          <span className="mt-1 block font-medium break-words">{latest.title}</span>
+        </Link>
       )}
 
       {sessions.length > 0 && (

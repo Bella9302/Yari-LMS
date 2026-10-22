@@ -3,6 +3,7 @@ import { hasRole } from "@/server/rbac";
 import { requireUser } from "@/server/guards";
 import { getOwnIdentity } from "@/server/pii/users";
 import { logoutAction } from "@/server/auth/actions";
+import { unreadCount } from "@/server/engagement/notifications";
 import { ROLE_LABELS } from "@/lib/roles";
 import type { Role } from "@/generated/prisma/enums";
 
@@ -10,7 +11,7 @@ const ROLE_PRIORITY: Role[] = ["SUPER_ADMIN", "TRAINER", "CLIENT_MANAGER", "LEAR
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { user } = await requireUser();
-  const identity = await getOwnIdentity(user.id);
+  const [identity, unread] = await Promise.all([getOwnIdentity(user.id), unreadCount(user.id)]);
 
   const nav: NavKey[] = ["home"];
   if (hasRole(user.roles, "LEARNER")) nav.push("learn");
@@ -26,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       displayName={identity.fullName}
       roleLabel={primaryRole ? ROLE_LABELS[primaryRole] : ""}
       logout={logoutAction}
+      unread={unread}
     >
       {children}
     </AppShell>

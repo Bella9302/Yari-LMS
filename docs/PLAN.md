@@ -130,15 +130,18 @@ QR codes rotate every 30 seconds (an HMAC of session id + time window) and work 
 ### Engagement
 
 ```
-TrainerRating   →User(trainer), →User(rater), →Course, →LiveSession?, knowledge, clarity, relevance,
-                engagement (1–5), comment?, createdAt         unique(rater, trainer, course, session)
-Announcement    scope(PLATFORM|COURSE), →Course?, →User(author), title, body, publishAt, emailedAt?
-DiscussionThread →Course, →User, title, pinned, locked
-DiscussionPost  →Thread, →User, parentId?, body, editedAt?, deletedAt?
-Notification    →User, type, payload(JSON), readAt?
-Badge           code, name, description, icon, criteria(JSON)
-UserBadge       →User, →Badge, awardedAt, →Course?
+TrainerRating   →User(trainer), →User(rater)?, →Course, →LiveSession?, knowledge, clarity, relevance,
+                engagement (1–5, CHECK), comment?, createdAt
+                partial unique: (rater, trainer, course) when no session; (rater, trainer, session) otherwise
+Announcement    scope(PLATFORM|COURSE), →Course?, →User(author)?, title, body(rich text), pinned, emailed,
+                recipients
+DiscussionThread →Course, →User, title, pinned, locked, lastPostAt
+DiscussionPost  →Thread, →User?, body(plain text), editedAt?, deletedAt?, →User(deletedBy)?
+Notification    →User, type, title, href, readAt?
+UserBadge       →User, badge(code), →Course?, awardedAt     unique(user, badge, coalesce(course,''))
 ```
+
+Badge definitions live in code (`src/lib/badges.ts`), not a table: there are seven and they change with releases.
 
 Rating anonymity: trainers see only aggregates, and only once **≥3 ratings** exist for a course or session. Comments are shown shuffled and without dates, so a learner can't be identified by timing. Admin sees everything.
 
@@ -325,3 +328,47 @@ src/
   - **Enrol staff.**
   - **Compliance report:** on screen, as CSV, and as PDF (A4, with the non-accreditation statement). Exports are audit-logged.
   - Companies only see enrolments made for their company. They never see submitted work, trainer feedback, or trainers' at-risk flags.
+
+## 11. Phase 5 (Engagement): what was built and the decisions behind it
+
+- **Notifications:** a bell in the header with an unread count, and a `/notifications` page. Opening one marks it read and goes to what it's about (same-site links only). Events that notify:
+  - a new announcement;
+  - a new discussion topic (course staff);
+  - a reply in a topic you've posted in;
+  - a released mark (quiz or assignment);
+  - a new badge.
+- **Announcements:**
+  - Course announcements come from the course's trainers (Announcements tab). Platform announcements come from a Super Admin (`/admin/announcements`).
+  - Rich text, optional pin, and "also email" (on by default). Emails go out in batches of 100 through Resend.
+  - Draft courses never email.
+  - Email is best effort: if the provider fails, the announcement and in-app notifications still stand. The trainer is told the email didn't go, and `emailed` stays false.
+  - Learners see announcements on their dashboard (latest three), on the course page, and at `/announcements` and `/learn/[course]/announcements`.
+- **Discussions** (`/learn/[course]/discussions`):
+  - Open to the course's staff and its enrolled learners. Archived courses are read-only.
+  - Plain-text posts, up to 10,000 characters, rate-limited to 20 posts per 10 minutes.
+  - **Names:** learners see each other as "Thandiwe M."; trainers are named in full and marked "Trainer". Staff see full names (POPIA data minimisation between learners).
+  - Authors can edit (marked "edited") and delete their own posts. Deleted posts show "This post was removed".
+  - Staff can remove any post, and pin or lock topics. Moderation is audit-logged.
+- **Trainer ratings:**
+  - **Who can rate:** a learner can rate the trainer of a session they attended (for 60 days after it ends), and each trainer on a course they completed (for 90 days). One rating each, enforced by the database.
+  - **What they rate:** knowledge, clarity, practical relevance and engagement, each 1–5. The star control is real radio buttons, so arrow keys and screen readers work. There is an optional comment.
+  - **Prompts:** the dashboard shows "Rate your trainer" while a rating is waiting.
+  - **Trainers** (`/teach/ratings`) see nothing until 3 ratings exist. After that they see:
+    - overall and per-criterion averages;
+    - a 12-month trend chart, where months with fewer than 3 ratings are gaps (with a table view);
+    - per-course averages, only for courses with 3 or more ratings;
+    - comments, shuffled and undated.
+  - **Super Admins** (`/admin/ratings`) see every rating with the rater's name, filterable by trainer. Each view is audit-logged.
+- **Calendar** (`/calendar`):
+  - A month grid plus a day-by-day agenda of live sessions, assignment due dates and course due dates, for the courses you learn on or teach. Times are in SAST.
+  - Items you've attended or handed in are marked.
+  - **"Add to your calendar"** downloads an `.ics` file covering the last 7 days and the next 120.
+- **Badges:**
+  - **The seven badges:** First step, Course complete, Full marks, On time, Full attendance, Committed learner (3 courses), and All-rounder (both categories).
+  - Badges are awarded automatically when progress is recomputed or attendance is marked.
+  - Shown on the dashboard and at `/account/badges`, always with the line "Badges celebrate progress on YARI Academy. They are not qualifications or accreditation."
+
+**Decisions to confirm later:**
+
+- **Calendar subscription:** a live calendar feed (a secret per-user URL) would save re-downloading the `.ics` file. It is deferred because the URL is effectively a password.
+- **Discussion formatting:** posts are plain text for now. Attachments and rich text in discussions can come later if trainers ask for them.

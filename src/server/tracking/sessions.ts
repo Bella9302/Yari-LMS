@@ -10,6 +10,7 @@ import { safeEqual } from "@/server/crypto/tokens";
 import { dec } from "@/server/pii/fields";
 import type { Actor } from "@/server/pii/users";
 import { AssessmentError } from "@/server/assessment/errors";
+import { awardBadges } from "@/server/engagement/badges";
 
 /** Each QR code is valid for its 30-second window plus the one before (scan-time leeway). */
 export const QR_WINDOW_MS = 30_000;
@@ -217,6 +218,7 @@ async function markPresent(userId: string, sessionId: string, method: "QR" | "ON
     entityId: sessionId,
     meta: { method },
   });
+  await awardBadges(userId);
   return record;
 }
 

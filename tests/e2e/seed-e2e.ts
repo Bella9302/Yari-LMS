@@ -78,7 +78,45 @@ async function main() {
     await db.user.update({ where: { id: invitee.id }, data: { status: "INVITED" } });
     const inviteToken = await db.$transaction((tx) => issueToken(tx, invitee.id, "INVITE", 86_400_000));
 
+    // A finished practical the student attended, so they have a trainer to rate (Phase 5).
+    // Its own trainer, so 2FA sign-ins don't share a rate-limit budget with other specs.
+    const facilitator = await createUser({
+      roles: [{ role: "TRAINER" }],
+      password: PASSWORD,
+      fullName: `Nomsa Facilitator ${project}`,
+    });
+    const facilitatorKey = await withTotp(facilitator.id);
+    const heights = await db.course.create({
+      data: {
+        slug: `working-at-heights-${project}`,
+        title: `Working at Heights ${project}`,
+        category: "HEALTH_SAFETY",
+        status: "PUBLISHED",
+        publishedAt: new Date(),
+        staff: { create: { userId: facilitator.id, role: "LEAD" } },
+        enrolments: { create: { userId: student.id, source: "ADMIN", organizationId: orgA.id } },
+      },
+    });
+    const yesterday = Date.now() - 86_400_000;
+    await db.liveSession.create({
+      data: {
+        courseId: heights.id,
+        title: "Harness practical",
+        mode: "IN_PERSON",
+        startsAt: new Date(yesterday),
+        endsAt: new Date(yesterday + 3 * 3600_000),
+        location: "Acme Mining, Gate 3",
+        trainerId: facilitator.id,
+        qrSecret: randomBytes(32).toString("base64url"),
+        attendance: {
+          create: { userId: student.id, status: "PRESENT", method: "MANUAL", recordedById: facilitator.id },
+        },
+      },
+    });
+
     fixtures[project] = {
+      heights: { id: heights.id, slug: heights.slug, title: heights.title },
+      facilitator: { email: facilitator.email, totpKey: facilitatorKey },
       admin: { email: admin.email, totpKey: key.toString("base64") },
       trainer: { email: trainer.email },
       manager: { email: manager.email },

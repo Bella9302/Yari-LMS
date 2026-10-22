@@ -32,9 +32,14 @@ export default async function TeachPage() {
         title="Courses"
         description="Build, publish and run your courses."
         actions={
-          <Link href="/teach/new" className={buttonClasses("primary")}>
-            <Plus className="size-4" aria-hidden /> New course
-          </Link>
+          <>
+            <Link href="/teach/ratings" className={buttonClasses("secondary")}>
+              Your ratings
+            </Link>
+            <Link href="/teach/new" className={buttonClasses("primary")}>
+              <Plus className="size-4" aria-hidden /> New course
+            </Link>
+          </>
         }
       />
 

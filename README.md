@@ -16,7 +16,7 @@ npm run dev                     # http://localhost:3000
 
 The seed also creates the two course templates. Uploaded files go to `.storage/` with the local storage driver. Without `CLAMAV_HOST`, uploads in development are marked "not scanned (dev)". Production requires ClamAV.
 
-Open the printed invitation link, set a password, and enrol your authenticator app (Super Admins and Trainers must use two-step verification). Without `RESEND_API_KEY`, emails such as invitations and password resets are printed to the dev server console.
+Open the printed invitation link, set a password, and enrol your authenticator app (Super Admins and Trainers must use two-step verification). Without `RESEND_API_KEY`, emails such as invitations, password resets and announcements are printed to the dev server console. In production a missing key is an error. Announcements still post, but the trainer is told the email didn't go.
 
 ## Scripts
 
@@ -32,6 +32,7 @@ Open the printed invitation link, set a password, and enrol your authenticator a
 - Passwords use Argon2id. Personal fields use AES-256-GCM, bound to their row and column. Email and ID lookups use HMAC blind indexes. Keys are kept in env and never in the database.
 - Session cookies are HttpOnly, Secure and SameSite, and only their hashes are stored. Login is rate-limited, with account lockout. TOTP two-factor and recovery codes are supported.
 - Reads and changes of personal data are written to an append-only audit log (enforced by a database trigger).
+- Trainer ratings are anonymous to trainers: they see aggregates only after 3 ratings, and comments shuffled and undated. Learners see each other in discussions by first name and initial only.
 - Client companies are isolated in the data layer (`src/server/pii/users.ts`, `src/server/rbac.ts`), and integration tests cover it.
 - `/styleguide` shows the design tokens and components.
 

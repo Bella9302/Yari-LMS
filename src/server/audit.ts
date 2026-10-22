@@ -51,7 +51,11 @@ export type AuditAction =
   | "session.updated"
   | "session.cancelled"
   | "attendance.recorded"
-  | "report.exported";
+  | "report.exported"
+  | "announcement.posted"
+  | "discussion.moderated"
+  | "rating.submitted"
+  | "ratings.viewed";
 
 export interface AuditEntry {
   actorId: string | null;

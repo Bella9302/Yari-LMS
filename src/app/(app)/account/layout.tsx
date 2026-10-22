@@ -10,6 +10,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
         items={[
           { href: "/account", label: "Profile", exact: true },
           { href: "/account/security", label: "Security" },
+          { href: "/account/badges", label: "Badges" },
           { href: "/account/privacy", label: "Privacy" },
         ]}
       />

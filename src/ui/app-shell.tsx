@@ -2,7 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, GraduationCap, Home, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import {
+  Bell,
+  BookOpen,
+  Building2,
+  CalendarDays,
+  GraduationCap,
+  Home,
+  LogOut,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { Monogram } from "@/ui/monogram";
 import { ThemeToggle } from "@/ui/theme";
@@ -23,11 +33,13 @@ export function AppShell({
   displayName,
   roleLabel,
   logout,
+  unread,
   children,
 }: {
   nav: NavKey[];
   displayName: string;
   roleLabel: string;
+  unread: number;
   logout: () => Promise<void>;
   children: ReactNode;
 }) {
@@ -74,6 +86,36 @@ export function AppShell({
               <p className="text-muted font-mono text-[0.65rem] tracking-wider uppercase">{roleLabel}</p>
             </div>
             <ThemeToggle />
+            <Link
+              href="/calendar"
+              aria-label="Calendar"
+              aria-current={isActive("/calendar") ? "page" : undefined}
+              className={cn(
+                "hover:bg-sunk inline-grid size-11 place-items-center rounded-sm",
+                isActive("/calendar") && "bg-sunk",
+              )}
+            >
+              <CalendarDays className="size-5" strokeWidth={1.5} />
+            </Link>
+            <Link
+              href="/notifications"
+              aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
+              aria-current={isActive("/notifications") ? "page" : undefined}
+              className={cn(
+                "hover:bg-sunk relative inline-grid size-11 place-items-center rounded-sm",
+                isActive("/notifications") && "bg-sunk",
+              )}
+            >
+              <Bell className="size-5" strokeWidth={1.5} />
+              {unread > 0 && (
+                <span
+                  aria-hidden
+                  className="bg-fg text-bg absolute top-1.5 right-1.5 grid min-w-4 place-items-center rounded-full px-1 font-mono text-[0.6rem] leading-4"
+                >
+                  {unread > 9 ? "9+" : unread}
+                </span>
+              )}
+            </Link>
             <Link
               href="/account"
               aria-label="Your account"

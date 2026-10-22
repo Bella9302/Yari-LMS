@@ -88,16 +88,23 @@ model User {
   recoveryCodes      RecoveryCode[]
   authTokens         AuthToken[]
   consents           Consent[]
-  dataRequests       DataRequest[]    @relation("DataRequestUser")
-  handledRequests    DataRequest[]    @relation("DataRequestHandler")
+  dataRequests       DataRequest[]      @relation("DataRequestUser")
+  handledRequests    DataRequest[]      @relation("DataRequestHandler")
   courseStaff        CourseStaff[]
   enrolments         Enrolment[]
   uploads            Asset[]
   marks              Mark[]
   gradeOverrides     GradeOverride[]
   sessionsLed        LiveSession[]
-  attendance         Attendance[]     @relation("AttendanceLearner")
-  attendanceRecorded Attendance[]     @relation("AttendanceRecorder")
+  attendance         Attendance[]       @relation("AttendanceLearner")
+  attendanceRecorded Attendance[]       @relation("AttendanceRecorder")
+  ratingsReceived    TrainerRating[]    @relation("RatedTrainer")
+  ratingsGiven       TrainerRating[]    @relation("Rater")
+  announcements      Announcement[]
+  threads            DiscussionThread[]
+  posts              DiscussionPost[]
+  notifications      Notification[]
+  badges             UserBadge[]
 }
 
 model UserProfile {
@@ -364,6 +371,10 @@ model Course {
   rubrics       Rubric[]
   sessions      LiveSession[]
   atRiskRules   AtRiskRule[]
+  ratings       TrainerRating[]
+  announcements Announcement[]
+  threads       DiscussionThread[]
+  badges        UserBadge[]
 
   @@index([status, isTemplate])
 }
@@ -784,24 +795,25 @@ enum AtRiskType {
 }
 
 model LiveSession {
-  id          String       @id @default(cuid(2))
+  id          String          @id @default(cuid(2))
   courseId    String
-  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course      Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
   title       String
-  description String       @default("")
+  description String          @default("")
   mode        SessionMode
   startsAt    DateTime
   endsAt      DateTime
   location    String?
   meetingUrl  String?
   trainerId   String?
-  trainer     User?        @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  trainer     User?           @relation(fields: [trainerId], references: [id], onDelete: SetNull)
   // Server-side secret for the rotating check-in QR code. Never sent to browsers.
   qrSecret    String
   cancelledAt DateTime?
   attendance  Attendance[]
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  ratings     TrainerRating[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
   @@index([courseId, startsAt])
   @@index([startsAt])
@@ -860,4 +872,121 @@ model AtRiskFlag {
 
   @@index([enrolmentId])
   @@index([ruleId, enrolmentId, resolvedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 — Engagement
+// ---------------------------------------------------------------------------
+
+enum AnnouncementScope {
+  PLATFORM
+  COURSE
+}
+
+enum NotificationType {
+  ANNOUNCEMENT
+  DISCUSSION_REPLY
+  DISCUSSION_THREAD
+  MARK_RELEASED
+  BADGE
+}
+
+// A learner's rating of one trainer, for a course (sessionId null) or a session.
+// Trainers only ever see aggregates; see src/server/engagement/ratings.ts.
+model TrainerRating {
+  id         String       @id @default(cuid(2))
+  trainerId  String
+  trainer    User         @relation("RatedTrainer", fields: [trainerId], references: [id], onDelete: Cascade)
+  raterId    String?
+  rater      User?        @relation("Rater", fields: [raterId], references: [id], onDelete: SetNull)
+  courseId   String
+  course     Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  sessionId  String?
+  session    LiveSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  knowledge  Int
+  clarity    Int
+  relevance  Int
+  engagement Int
+  comment    String?
+  createdAt  DateTime     @default(now())
+
+  @@index([trainerId, createdAt])
+  @@index([raterId])
+}
+
+model Announcement {
+  id         String            @id @default(cuid(2))
+  scope      AnnouncementScope
+  courseId   String?
+  course     Course?           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?             @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  title      String
+  body       Json
+  pinned     Boolean           @default(false)
+  emailed    Boolean           @default(false)
+  recipients Int               @default(0)
+  createdAt  DateTime          @default(now())
+
+  @@index([scope, createdAt])
+  @@index([courseId, createdAt])
+}
+
+model DiscussionThread {
+  id         String           @id @default(cuid(2))
+  courseId   String
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?            @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  title      String
+  pinned     Boolean          @default(false)
+  locked     Boolean          @default(false)
+  lastPostAt DateTime         @default(now())
+  posts      DiscussionPost[]
+  createdAt  DateTime         @default(now())
+
+  @@index([courseId, pinned, lastPostAt])
+}
+
+model DiscussionPost {
+  id          String           @id @default(cuid(2))
+  threadId    String
+  thread      DiscussionThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  authorId    String?
+  author      User?            @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  body        String
+  editedAt    DateTime?
+  // Soft delete keeps the conversation readable ("removed by a trainer").
+  deletedAt   DateTime?
+  deletedById String?
+  createdAt   DateTime         @default(now())
+
+  @@index([threadId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid(2))
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  href      String
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+// Badge definitions live in code (src/lib/badges.ts); this records who earned what.
+model UserBadge {
+  id        String   @id @default(cuid(2))
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge     String
+  // Set for course-specific badges (e.g. full marks on a course's quiz).
+  courseId  String?
+  course    Course?  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  awardedAt DateTime @default(now())
+
+  @@index([userId])
 }

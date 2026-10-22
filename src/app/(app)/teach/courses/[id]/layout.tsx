@@ -76,6 +76,8 @@ export default async function CourseLayout({
           ...(course.isTemplate
             ? []
             : [
+                { href: `${base}/announcements`, label: "Announcements" },
+                { href: `/learn/${course.slug}/discussions`, label: "Discussions" },
                 { href: `${base}/sessions`, label: "Sessions" },
                 { href: `${base}/marking`, label: toMark ? `Marking (${toMark})` : "Marking" },
                 { href: `${base}/progress`, label: flagged ? `Progress (${flagged})` : "Progress" },

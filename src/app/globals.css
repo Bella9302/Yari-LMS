@@ -193,6 +193,39 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%230b0b0c' stroke-width='2'/%3E%3C/svg%3E");
   }
 
+  /* Star rating (src/ui/rating-form.tsx): stars up to the chosen one fill in. */
+  .stars label {
+    color: var(--color-line-strong);
+    transition: color 120ms;
+  }
+  .stars:has(input[value="1"]:checked) label:nth-of-type(-n + 1) {
+    color: var(--color-accent-text);
+  }
+  .stars:has(input[value="2"]:checked) label:nth-of-type(-n + 2) {
+    color: var(--color-accent-text);
+  }
+  .stars:has(input[value="3"]:checked) label:nth-of-type(-n + 3) {
+    color: var(--color-accent-text);
+  }
+  .stars:has(input[value="4"]:checked) label:nth-of-type(-n + 4) {
+    color: var(--color-accent-text);
+  }
+  .stars:has(input[value="5"]:checked) label:nth-of-type(-n + 5) {
+    color: var(--color-accent-text);
+  }
+  @media (hover: hover) {
+    .stars:hover label {
+      color: var(--color-accent-text);
+    }
+    .stars label:hover ~ label {
+      color: var(--color-line-strong);
+    }
+  }
+  .stars input:focus-visible + label {
+    outline: 2px solid var(--color-fg);
+    outline-offset: 1px;
+  }
+
   .eyebrow {
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);

@@ -8,6 +8,7 @@ import type { Actor } from "@/server/pii/users";
 import { AssessmentError } from "@/server/assessment/errors";
 import { drawQuestions, rescore, scoreAttempt, scoreQuestion } from "@/server/assessment/scoring";
 import { computeGrade, syncItemProgress } from "@/server/assessment/grades";
+import { notifyMarked } from "@/server/engagement/notifications";
 import { toLearnerQuestion, type Answer, type LearnerQuestion, type SnapshotQuestion } from "@/lib/questions";
 
 // Network lag allowance after the deadline before late answers are ignored.
@@ -396,4 +397,5 @@ export async function markAttempt(actor: Actor, attemptId: string, awardedInput:
     meta: { scorePct },
   });
   await syncItemProgress(attempt.enrolmentId, attempt.quizId);
+  await notifyMarked(attempt.enrolmentId, attempt.quizId);
 }

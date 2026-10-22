@@ -10,6 +10,7 @@ import { AssessmentError } from "@/server/assessment/errors";
 import { computeGrade, syncItemProgress, type Grade } from "@/server/assessment/grades";
 import { rubricScore } from "@/server/assessment/scoring";
 import { getRubric } from "@/server/assessment/authoring";
+import { notifyMarked } from "@/server/engagement/notifications";
 
 const fileSelect = { asset: { select: { id: true, filename: true, bytes: true, mime: true } } } as const;
 
@@ -381,5 +382,6 @@ export async function saveMark(actor: Actor, submissionId: string, input: MarkIn
       meta: { score },
     });
     await syncItemProgress(submission.enrolmentId, submission.assignmentId);
+    await notifyMarked(submission.enrolmentId, submission.assignmentId);
   }
 }
