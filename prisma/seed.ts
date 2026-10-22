@@ -1,4 +1,5 @@
-// Bootstrap seed: creates the first Super Admin as a pending invitation and prints the link.
+// Bootstrap seed: creates the course templates and the first Super Admin (as a pending
+// invitation, printing the link).
 // Demo data (courses, learners, ratings) is added in Phase 7.
 // Run with: npm run db:seed
 import "dotenv/config";
@@ -8,8 +9,12 @@ import { emailIndex, normaliseEmail } from "@/server/crypto/blind-index";
 import { newId } from "@/server/crypto/tokens";
 import { enc } from "@/server/pii/fields";
 import { INVITE_DAYS, issueToken } from "@/server/pii/users";
+import { ensureTemplates } from "@/server/courses/templates";
 
 async function main() {
+  const templates = await ensureTemplates();
+  if (templates.length) console.log(`Created course templates: ${templates.join(", ")}`);
+
   const existingAdmin = await db.roleAssignment.findFirst({ where: { role: "SUPER_ADMIN" } });
   if (existingAdmin) {
     console.log("A Super Admin already exists — nothing to do.");

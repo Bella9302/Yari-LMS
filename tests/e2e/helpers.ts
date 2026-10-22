@@ -8,6 +8,8 @@ interface ProjectFixtures {
   trainer: { email: string };
   manager: { email: string };
   staffName: string;
+  builder: { email: string; totpKey: string };
+  student: { email: string; fullName: string };
   invite: { token: string; email: string; idNumber: string };
 }
 
@@ -25,6 +27,21 @@ export async function signIn(page: Page, email: string, password: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
+}
+
+/** Signs in and waits until the app has accepted it. */
+export async function signedIn(page: Page, email: string, password: string) {
+  await signIn(page, email, password);
+  await page.waitForURL(/\/(dashboard|setup-2fa|login\/2fa)/);
+}
+
+/** Signs in and completes the TOTP step. */
+export async function signInWith2fa(page: Page, email: string, password: string, totpKey: string) {
+  await signIn(page, email, password);
+  await page.waitForURL(/\/login\/2fa/);
+  await page.getByLabel("Verification code").fill(totp(totpKey));
+  await page.getByRole("button", { name: "Verify" }).click();
+  await page.waitForURL(/\/dashboard$/);
 }
 
 /** No sideways scrolling on phones. */

@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Home, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { BookOpen, Building2, GraduationCap, Home, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { Monogram } from "@/ui/monogram";
 import { ThemeToggle } from "@/ui/theme";
 import { cn } from "@/ui/cn";
 
-export type NavKey = "home" | "org" | "admin" | "account";
+export type NavKey = "home" | "learn" | "teach" | "org" | "admin";
 
 const NAV: Record<NavKey, { href: string; label: string; icon: typeof Home }> = {
   home: { href: "/dashboard", label: "Home", icon: Home },
+  learn: { href: "/learn", label: "Learn", icon: GraduationCap },
+  teach: { href: "/teach", label: "Teach", icon: BookOpen },
   org: { href: "/org", label: "Company", icon: Building2 },
   admin: { href: "/admin", label: "Admin", icon: ShieldCheck },
-  account: { href: "/account", label: "Account", icon: UserRound },
 };
 
 export function AppShell({
@@ -73,6 +74,17 @@ export function AppShell({
               <p className="text-muted font-mono text-[0.65rem] tracking-wider uppercase">{roleLabel}</p>
             </div>
             <ThemeToggle />
+            <Link
+              href="/account"
+              aria-label="Your account"
+              aria-current={isActive("/account") ? "page" : undefined}
+              className={cn(
+                "hover:bg-sunk inline-grid size-11 place-items-center rounded-sm",
+                isActive("/account") && "bg-sunk",
+              )}
+            >
+              <UserRound className="size-5" strokeWidth={1.5} />
+            </Link>
             <form action={logout}>
               <button
                 type="submit"

@@ -9,6 +9,7 @@ import { EmptyState, PageHeader } from "@/ui/primitives";
 import { InviteForm } from "@/ui/invite-form";
 import { StaffTable } from "@/ui/staff-table";
 import { cn } from "@/ui/cn";
+import { OrgEnrol } from "./org-enrol";
 
 export const metadata: Metadata = { title: "My company" };
 
@@ -28,7 +29,21 @@ export default async function OrgPage({
 
   const sp = await searchParams;
   const org = orgs.find((o) => o.id === sp.org) ?? orgs[0]!;
-  const staff = await listUsers({ id: user.id, roles: user.roles }, { organizationId: org.id, q: sp.q });
+  const [staff, courses] = await Promise.all([
+    listUsers({ id: user.id, roles: user.roles }, { organizationId: org.id, q: sp.q }),
+    db.course.findMany({
+      where: { status: "PUBLISHED", visibility: "PUBLIC", isTemplate: false },
+      orderBy: { title: "asc" },
+      select: {
+        id: true,
+        title: true,
+        enrolments: {
+          where: { organizationId: org.id, status: { not: "WITHDRAWN" } },
+          select: { userId: true },
+        },
+      },
+    }),
+  ]);
 
   return (
     <div className="space-y-10">
@@ -62,6 +77,24 @@ export default async function OrgPage({
           They&apos;ll get an email to set up their account and join {org.name}.
         </p>
         <InviteForm roles={["LEARNER"]} organizations={[]} fixedOrganizationId={org.id} />
+      </section>
+
+      <section className="border-line bg-surface border p-5">
+        <h2 className="font-display text-h3 mb-1">Enrol staff on a course</h2>
+        <p className="text-muted mb-5 text-sm">
+          Choose a course from the YARI catalogue, then the people to enrol.
+        </p>
+        <OrgEnrol
+          organizationId={org.id}
+          courses={courses.map((c) => ({
+            id: c.id,
+            title: c.title,
+            enrolledUserIds: c.enrolments.map((e) => e.userId),
+          }))}
+          staff={staff
+            .filter((s) => s.status !== "SUSPENDED")
+            .map((s) => ({ id: s.id, name: s.fullName, detail: s.email }))}
+        />
       </section>
 
       <section>

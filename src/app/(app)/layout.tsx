@@ -13,9 +13,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const identity = await getOwnIdentity(user.id);
 
   const nav: NavKey[] = ["home"];
+  if (hasRole(user.roles, "LEARNER")) nav.push("learn");
+  if (hasRole(user.roles, "TRAINER") || hasRole(user.roles, "SUPER_ADMIN")) nav.push("teach");
   if (hasRole(user.roles, "CLIENT_MANAGER")) nav.push("org");
   if (hasRole(user.roles, "SUPER_ADMIN")) nav.push("admin");
-  nav.push("account");
 
   const primaryRole = ROLE_PRIORITY.find((r) => hasRole(user.roles, r));
 

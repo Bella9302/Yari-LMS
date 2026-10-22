@@ -14,6 +14,8 @@ npm run db:seed                 # prints an invitation link for the first Super 
 npm run dev                     # http://localhost:3000
 ```
 
+The seed also creates the two course templates. Uploaded files go to `.storage/` with the local storage driver. Without `CLAMAV_HOST`, uploads in development are marked "not scanned (dev)". Production requires ClamAV.
+
 Open the printed invitation link, set a password, and enrol your authenticator app (Super Admins and Trainers must use two-step verification). Without `RESEND_API_KEY`, emails such as invitations and password resets are printed to the dev server console.
 
 ## Scripts

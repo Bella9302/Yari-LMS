@@ -93,7 +93,7 @@ test("a client manager sees only their own company", async ({ page }, info) => {
   await expect(page).toHaveURL(/\/dashboard$/);
   await page.goto("/org");
   await expect(page.getByRole("heading", { name: f.orgA })).toBeVisible();
-  await expect(page.getByText(f.staffName)).toBeVisible();
+  await expect(page.getByRole("table").getByText(f.staffName)).toBeVisible();
   await expect(page.getByText("Busisiwe Other-Company")).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   await expectAccessible(page);

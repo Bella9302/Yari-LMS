@@ -6,4 +6,6 @@ export const E2E_ENV = {
   FIELD_ENC_ACTIVE_KEY: "ktest1",
   BLIND_INDEX_KEY: Buffer.alloc(32, 9).toString("base64"),
   RESEND_API_KEY: "",
+  ALLOW_UNSCANNED_UPLOADS: "true",
+  STORAGE_LOCAL_DIR: ".e2e/storage",
 };

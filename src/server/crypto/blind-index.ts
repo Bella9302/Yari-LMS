@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { env } from "@/server/env";
 
 // Each purpose gets its own domain so equal inputs never collide across purposes.
-type Purpose = "email" | "id-number" | "ip" | "rate-limit";
+type Purpose = "email" | "id-number" | "ip" | "rate-limit" | "signed-url";
 
 export function blindIndex(purpose: Purpose, normalisedValue: string): string {
   return createHmac("sha256", Buffer.from(env().BLIND_INDEX_KEY, "base64"))

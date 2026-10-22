@@ -183,6 +183,16 @@
 }
 
 @layer components {
+  /* Custom checkbox tick (an SVG data URL can't live in a Tailwind class reliably). */
+  .yari-check:checked {
+    background-position: center;
+    background-repeat: no-repeat;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23f7f5f0' stroke-width='2'/%3E%3C/svg%3E");
+  }
+  [data-theme="dark"] .yari-check:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%230b0b0c' stroke-width='2'/%3E%3C/svg%3E");
+  }
+
   .eyebrow {
     font-family: var(--font-mono);
     font-size: var(--text-eyebrow);
@@ -190,4 +200,52 @@
     text-transform: uppercase;
     color: var(--fg-muted);
   }
+}
+
+/* Long-form course text. */
+.prose-yari {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  max-width: 68ch;
+}
+.prose-yari > * + * {
+  margin-top: 1em;
+}
+.prose-yari h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  line-height: 1.15;
+  margin-top: 1.6em;
+}
+.prose-yari h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  margin-top: 1.4em;
+}
+.prose-yari ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.prose-yari ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.prose-yari li + li {
+  margin-top: 0.35em;
+}
+.prose-yari a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose-yari blockquote {
+  border-left: 2px solid var(--accent-fill);
+  padding-left: 1em;
+  color: var(--fg-muted);
+}
+.prose-yari hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.prose-yari strong {
+  font-weight: 650;
 }

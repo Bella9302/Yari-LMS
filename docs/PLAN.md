@@ -211,3 +211,38 @@ src/
 - Does the `privacy@yarigroup.co.za` mailbox exist? Who will act as Information Officer?
 - The business card says "SACPCMP registered". Should the landing page show this as a credential of the consultancy, kept clearly separate from the (non-accredited) training?
 - Which contact details go on the public site: the card's numbers and Gmail address, or a new `@yarigroup.co.za` address?
+
+## 8. Phase 2 (Content): what was built and the decisions behind it
+
+- **Structure:** Course → Module → Item. Item types are Text (Tiptap rich text), Video, PDF, Slides (as PDF), Link and Download. Quiz and Assignment types arrive in Phase 3.
+- **Draft and published, at two levels:**
+  - A course is Draft, Published or Archived.
+  - Each item is also _visible_ or _hidden_. New items start hidden, so half-built content never reaches learners. An item can't be made visible until it has its content (file or link) and the file has passed the virus scan.
+- **Course templates:** "SHE Rep Practical Training" and "Intro to AI Tools at Work" are created by `npm run db:seed`. Creating a course from a template copies its modules, items and release rules (dependencies are re-pointed to the copies). Files are shared, not duplicated. Only Super Admins edit templates.
+- **Builder:**
+  - Drag-and-drop works with mouse, touch (press and hold) and keyboard (dnd-kit).
+  - Screen-reader announcements use item names.
+  - Items only land on items and modules only on modules, so keyboard moves on narrow screens behave.
+  - Every reorder saves the whole layout, which is checked against the database so a stale tab can't scramble a course.
+- **Release conditions:**
+  - "From a date" (SA time) and "after item X is completed", on a module or an item. All conditions must be met (AND).
+  - "Minimum score" is in the data model and evaluator, and becomes available in the builder with quizzes in Phase 3.
+  - Rules that would make items wait on each other forever are rejected.
+  - Locks are enforced on the server: locked content and files are never sent, and locked items can't be completed.
+- **Files:**
+  - The browser uploads directly to storage: a presigned URL with R2, or a signed URL with the local driver.
+  - The server then checks the size, checks the real file type by its leading bytes (a renamed `.exe` is rejected), hashes the file (SHA-256) and streams it to **ClamAV** (clamd `INSTREAM`). Infected or failed files are deleted.
+  - Production refuses to start without `CLAMAV_HOST`.
+  - Files are served only through `/api/files/[id]` after an access check. Video seeking (byte ranges) is supported. Downloads are sandboxed.
+- **Video:** Bunny Stream, YouTube (privacy-enhanced `youtube-nocookie`) or Vimeo (`dnt=1`) links are converted to embeds. Uploaded MP4/WebM files are also supported, with `preload="none"` so nothing downloads until the learner presses play.
+- **Low data on phones:** PDFs open in the phone's own viewer. The inline PDF frame only loads on wider screens.
+- **Progress:**
+  - An item counts as viewed when the learner opens it. This is recorded by the browser, so link prefetching never counts.
+  - Completion is an explicit "Mark as complete".
+  - Course progress is the share of required, visible items completed. Completion is sticky.
+  - From Phase 3, completion will also need the pass marks on quizzes and assignments.
+- **Enrolment:**
+  - **Super Admins** enrol anyone.
+  - **Client Managers** enrol their own staff into published _catalogue_ courses (the course's "Who can be enrolled" setting).
+  - **Trainers don't enrol:** that would mean browsing every learner on the platform. They see the roster of their own courses, and each roster view is audit-logged.
+- **Staff:** each course has a lead trainer and optional co-trainers. Admins can edit every course.

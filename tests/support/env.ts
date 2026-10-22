@@ -1,3 +1,5 @@
+import { tmpdir } from "node:os";
+
 // Deterministic test configuration. Keys here are for tests only.
 (process.env as Record<string, string>).NODE_ENV ??= "test";
 process.env.DATABASE_URL = process.env.TEST_DATABASE_URL ?? "postgresql://yari:yari@localhost:5432/yari_test";
@@ -9,3 +11,6 @@ process.env.FIELD_ENC_KEYS = JSON.stringify({
 process.env.FIELD_ENC_ACTIVE_KEY = "ktest1";
 process.env.BLIND_INDEX_KEY = Buffer.alloc(32, 9).toString("base64");
 delete process.env.RESEND_API_KEY;
+process.env.STORAGE_DRIVER = "local";
+process.env.STORAGE_LOCAL_DIR ??= `${tmpdir()}/yari-test-storage`;
+delete process.env.CLAMAV_HOST;

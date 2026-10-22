@@ -29,7 +29,16 @@ export type AuditAction =
   | "consent.withdrawn"
   | "data_request.created"
   | "data_request.updated"
-  | "settings.updated";
+  | "settings.updated"
+  | "course.created"
+  | "course.status_changed"
+  | "course.deleted"
+  | "course.staff_changed"
+  | "enrolment.created"
+  | "enrolment.withdrawn"
+  | "enrolment.completed"
+  | "asset.uploaded"
+  | "asset.rejected";
 
 export interface AuditEntry {
   actorId: string | null;

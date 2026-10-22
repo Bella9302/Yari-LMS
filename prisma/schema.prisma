@@ -63,48 +63,51 @@ enum OrganizationStatus {
 }
 
 model User {
-  id             String     @id
-  emailEnc       String
-  emailIdx       String     @unique
-  passwordHash   String?
-  status         UserStatus @default(INVITED)
-  totpSecretEnc  String?
-  totpEnabledAt  DateTime?
-  totpLastStep   Int?
-  lastLoginAt    DateTime?
-  failedLogins   Int        @default(0)
-  lockedUntil    DateTime?
-  deletedAt      DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  invitedById    String?
-  invitedBy      User?      @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
-  invitees       User[]     @relation("InvitedBy")
+  id            String     @id
+  emailEnc      String
+  emailIdx      String     @unique
+  passwordHash  String?
+  status        UserStatus @default(INVITED)
+  totpSecretEnc String?
+  totpEnabledAt DateTime?
+  totpLastStep  Int?
+  lastLoginAt   DateTime?
+  failedLogins  Int        @default(0)
+  lockedUntil   DateTime?
+  deletedAt     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  invitedById   String?
+  invitedBy     User?      @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  invitees      User[]     @relation("InvitedBy")
 
-  profile        UserProfile?
-  roles          RoleAssignment[]
-  memberships    OrgMembership[]
-  sessions       AuthSession[]
-  recoveryCodes  RecoveryCode[]
-  authTokens     AuthToken[]
-  consents       Consent[]
-  dataRequests   DataRequest[]  @relation("DataRequestUser")
-  handledRequests DataRequest[] @relation("DataRequestHandler")
+  profile         UserProfile?
+  roles           RoleAssignment[]
+  memberships     OrgMembership[]
+  sessions        AuthSession[]
+  recoveryCodes   RecoveryCode[]
+  authTokens      AuthToken[]
+  consents        Consent[]
+  dataRequests    DataRequest[]    @relation("DataRequestUser")
+  handledRequests DataRequest[]    @relation("DataRequestHandler")
+  courseStaff     CourseStaff[]
+  enrolments      Enrolment[]
+  uploads         Asset[]
 }
 
 model UserProfile {
-  userId          String          @id
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  fullNameEnc     String
+  userId           String          @id
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullNameEnc      String
   preferredNameEnc String?
-  idType          IdDocumentType?
-  idNumberEnc     String?
-  idNumberIdx     String?         @unique
-  passportCountry String?         @db.Char(2)
-  phoneEnc        String?
-  addressEnc      String?
-  employerEnc     String?
-  updatedAt       DateTime        @updatedAt
+  idType           IdDocumentType?
+  idNumberEnc      String?
+  idNumberIdx      String?         @unique
+  passportCountry  String?         @db.Char(2)
+  phoneEnc         String?
+  addressEnc       String?
+  employerEnc      String?
+  updatedAt        DateTime        @updatedAt
 }
 
 model RoleAssignment {
@@ -122,15 +125,16 @@ model RoleAssignment {
 }
 
 model Organization {
-  id          String             @id @default(cuid(2))
-  name        String
-  slug        String             @unique
-  regNumber   String?
-  status      OrganizationStatus @default(ACTIVE)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  members     OrgMembership[]
-  roles       RoleAssignment[]
+  id         String             @id @default(cuid(2))
+  name       String
+  slug       String             @unique
+  regNumber  String?
+  status     OrganizationStatus @default(ACTIVE)
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  members    OrgMembership[]
+  roles      RoleAssignment[]
+  enrolments Enrolment[]
 }
 
 model OrgMembership {
@@ -186,9 +190,9 @@ model AuthToken {
 }
 
 model RateLimitHit {
-  id        String   @id @default(cuid(2))
-  key       String
-  at        DateTime @default(now())
+  id  String   @id @default(cuid(2))
+  key String
+  at  DateTime @default(now())
 
   @@index([key, at])
 }
@@ -242,4 +246,248 @@ model PlatformSetting {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Content
+// ---------------------------------------------------------------------------
+
+enum CourseCategory {
+  HEALTH_SAFETY
+  AI_DIGITAL
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CourseVisibility {
+  // Listed in the public catalogue (Phase 6).
+  PUBLIC
+  // Reachable only by enrolment.
+  PRIVATE
+}
+
+enum CourseStaffRole {
+  LEAD
+  ASSISTANT
+}
+
+enum ItemType {
+  VIDEO
+  PDF
+  SLIDES
+  RICH_TEXT
+  LINK
+  DOWNLOAD
+}
+
+enum ReleaseRuleType {
+  AFTER_DATE
+  ITEM_COMPLETED
+  MIN_SCORE
+}
+
+enum AssetScanStatus {
+  PENDING
+  CLEAN
+  INFECTED
+  FAILED
+  // Development only: no virus scanner configured. Refused in production.
+  SKIPPED
+}
+
+enum AssetKind {
+  DOCUMENT
+  VIDEO
+  IMAGE
+  FILE
+}
+
+enum EnrolmentStatus {
+  ACTIVE
+  COMPLETED
+  WITHDRAWN
+}
+
+enum EnrolmentSource {
+  ADMIN
+  TRAINER
+  CLIENT_MANAGER
+  SELF
+  PURCHASE
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Course {
+  id               String           @id @default(cuid(2))
+  slug             String           @unique
+  title            String
+  summary          String           @default("")
+  category         CourseCategory
+  status           CourseStatus     @default(DRAFT)
+  visibility       CourseVisibility @default(PRIVATE)
+  isTemplate       Boolean          @default(false)
+  templateSourceId String?
+  templateSource   Course?          @relation("TemplateSource", fields: [templateSourceId], references: [id], onDelete: SetNull)
+  derivedCourses   Course[]         @relation("TemplateSource")
+  coverAssetId     String?
+  coverAsset       Asset?           @relation("CourseCover", fields: [coverAssetId], references: [id], onDelete: SetNull)
+  estMinutes       Int?
+  // Reserved for future payments (out of scope for now).
+  priceCents       Int?
+  currency         String?          @db.Char(3)
+  publishedAt      DateTime?
+  createdById      String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  staff      CourseStaff[]
+  modules    Module[]
+  enrolments Enrolment[]
+
+  @@index([status, isTemplate])
+}
+
+model CourseStaff {
+  courseId  String
+  course    Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      CourseStaffRole @default(ASSISTANT)
+  createdAt DateTime        @default(now())
+
+  @@id([courseId, userId])
+  @@index([userId])
+}
+
+model Module {
+  id           String        @id @default(cuid(2))
+  courseId     String
+  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  position     Int
+  title        String
+  description  String        @default("")
+  items        Item[]
+  releaseRules ReleaseRule[] @relation("ModuleRules")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([courseId, position])
+}
+
+model Item {
+  id           String         @id @default(cuid(2))
+  moduleId     String
+  module       Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  position     Int
+  type         ItemType
+  title        String
+  // Tiptap JSON for RICH_TEXT; optional intro text for other types.
+  body         Json?
+  assetId      String?
+  asset        Asset?         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  externalUrl  String?
+  required     Boolean        @default(true)
+  // New items start hidden so half-built content never reaches learners.
+  published    Boolean        @default(false)
+  estMinutes   Int?
+  releaseRules ReleaseRule[]  @relation("ItemRules")
+  dependents   ReleaseRule[]  @relation("RuleDependency")
+  progress     ItemProgress[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([moduleId, position])
+  @@index([assetId])
+}
+
+// Attached to either a module or an item. All rules on a target must pass (AND).
+model ReleaseRule {
+  id              String          @id @default(cuid(2))
+  moduleId        String?
+  module          Module?         @relation("ModuleRules", fields: [moduleId], references: [id], onDelete: Cascade)
+  itemId          String?
+  item            Item?           @relation("ItemRules", fields: [itemId], references: [id], onDelete: Cascade)
+  type            ReleaseRuleType
+  afterDate       DateTime?
+  dependsOnItemId String?
+  dependsOnItem   Item?           @relation("RuleDependency", fields: [dependsOnItemId], references: [id], onDelete: Cascade)
+  minScorePct     Int?
+  createdAt       DateTime        @default(now())
+
+  @@index([moduleId])
+  @@index([itemId])
+}
+
+model Asset {
+  id           String          @id @default(cuid(2))
+  storageKey   String          @unique
+  filename     String
+  mime         String
+  kind         AssetKind
+  // Declared size at upload time; verified against the stored object before release.
+  bytes        Int
+  sha256       String?
+  scanStatus   AssetScanStatus @default(PENDING)
+  scanDetail   String?
+  scannedAt    DateTime?
+  uploadedById String?
+  uploadedBy   User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime        @default(now())
+  items        Item[]
+  coverOf      Course[]        @relation("CourseCover")
+
+  @@index([uploadedById])
+}
+
+model Enrolment {
+  id             String          @id @default(cuid(2))
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId       String
+  course         Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  // The company that enrolled the learner (drives Client Manager reporting).
+  organizationId String?
+  organization   Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  source         EnrolmentSource
+  status         EnrolmentStatus @default(ACTIVE)
+  enrolledById   String?
+  dueAt          DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  lastActiveAt   DateTime?
+  progressPct    Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  progress       ItemProgress[]
+
+  @@unique([userId, courseId])
+  @@index([courseId, status])
+  @@index([organizationId])
+}
+
+model ItemProgress {
+  id            String         @id @default(cuid(2))
+  enrolmentId   String
+  enrolment     Enrolment      @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  status        ProgressStatus @default(NOT_STARTED)
+  firstViewedAt DateTime?
+  lastViewedAt  DateTime?
+  completedAt   DateTime?
+  timeSpentSec  Int            @default(0)
+  // Best score for scored items (quizzes, Phase 3). Used by MIN_SCORE release rules.
+  scorePct      Float?
+
+  @@unique([enrolmentId, itemId])
+  @@index([itemId])
 }

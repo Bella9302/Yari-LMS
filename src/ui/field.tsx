@@ -80,7 +80,7 @@ export function Checkbox({ label, className, ...props }: ComponentProps<"input">
     >
       <input
         type="checkbox"
-        className="border-line-strong bg-surface checked:border-fg checked:bg-inverse checked:bg-[url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23f7f5f0' stroke-width='2'/%3E%3C/svg%3E&quot;)] dark:checked:bg-[url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%230b0b0c' stroke-width='2'/%3E%3C/svg%3E&quot;)] mt-0.5 size-5 shrink-0 cursor-pointer appearance-none rounded-sm border bg-center bg-no-repeat"
+        className="yari-check border-line-strong bg-surface checked:border-fg checked:bg-inverse mt-0.5 size-5 shrink-0 cursor-pointer appearance-none rounded-sm border"
         {...props}
       />
       <span>{label}</span>
