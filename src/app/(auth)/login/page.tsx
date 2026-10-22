@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/server/auth/session";
 import { authStage } from "@/server/rbac";
 import { Notice } from "@/ui/primitives";
+import { safeNextPath } from "@/lib/form-state";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -14,7 +15,7 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; reset?: string }>;
 }) {
   const { next, reset } = await searchParams;
-  if (authStage(await getCurrentSession()) === "ok") redirect("/dashboard");
+  if (authStage(await getCurrentSession()) === "ok") redirect(safeNextPath(next));
 
   return (
     <>

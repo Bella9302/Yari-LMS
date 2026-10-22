@@ -19,7 +19,7 @@ export default async function CourseLayout({
   const { id } = await params;
   const course = await getEditableCourse({ id: user.id, roles: user.roles }, id);
   const base = `/teach/courses/${id}`;
-  const [pendingSubmissions, pendingAttempts] = await Promise.all([
+  const [pendingSubmissions, pendingAttempts, flagged] = await Promise.all([
     db.submission.count({
       where: {
         status: "SUBMITTED",
@@ -31,6 +31,7 @@ export default async function CourseLayout({
     db.quizAttempt.count({
       where: { status: "NEEDS_MARKING", quiz: { item: { module: { courseId: id } } } },
     }),
+    db.atRiskFlag.count({ where: { resolvedAt: null, rule: { courseId: id } } }),
   ]);
   const toMark = pendingSubmissions + pendingAttempts;
 
@@ -75,7 +76,9 @@ export default async function CourseLayout({
           ...(course.isTemplate
             ? []
             : [
+                { href: `${base}/sessions`, label: "Sessions" },
                 { href: `${base}/marking`, label: toMark ? `Marking (${toMark})` : "Marking" },
+                { href: `${base}/progress`, label: flagged ? `Progress (${flagged})` : "Progress" },
                 { href: `${base}/gradebook`, label: "Gradebook" },
                 { href: `${base}/people`, label: "People" },
               ]),

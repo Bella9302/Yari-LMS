@@ -9,6 +9,8 @@ import { buttonClasses } from "@/ui/button";
 import { ITEM_TYPE_META } from "@/ui/item-type";
 import { CategoryTag, Notice, Tag } from "@/ui/primitives";
 import { ProgressRing } from "@/ui/progress-ring";
+import { upcomingSessionsFor } from "@/server/tracking/sessions";
+import { SessionList } from "@/ui/session-list";
 
 export const metadata: Metadata = { title: "Course" };
 
@@ -18,6 +20,7 @@ export default async function CourseOutlinePage({ params }: { params: Promise<{ 
   const data = await getLearnerCourse({ id: user.id, roles: user.roles }, slug);
   if (!data) notFound();
   const { course, enrolment, modules, nextItemId, preview } = data;
+  const sessions = enrolment ? await upcomingSessionsFor(user.id, { courseId: course.id }) : [];
   const total = modules.reduce((n, m) => n + m.items.length, 0);
 
   return (
@@ -57,6 +60,15 @@ export default async function CourseOutlinePage({ params }: { params: Promise<{ 
         <Notice tone="success" title="Course completed">
           Well done. You can come back to the material at any time.
         </Notice>
+      )}
+
+      {sessions.length > 0 && (
+        <section aria-labelledby="course-sessions-heading" className="space-y-3">
+          <h2 id="course-sessions-heading" className="eyebrow">
+            Live sessions
+          </h2>
+          <SessionList sessions={sessions} />
+        </section>
       )}
 
       <ol className="space-y-8">

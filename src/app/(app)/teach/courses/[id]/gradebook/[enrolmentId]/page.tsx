@@ -11,8 +11,12 @@ import { formatDateTime } from "@/lib/format";
 import { ItemTypeIcon } from "@/ui/item-type";
 import { Tag } from "@/ui/primitives";
 import { OverrideForm } from "./override-form";
+import { getLearnerActivity } from "@/server/tracking/progress";
+import { formatDuration } from "@/server/tracking/activity";
+import { RULE_INFO } from "@/server/tracking/at-risk";
+import { formatDate } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Learner grades" };
+export const metadata: Metadata = { title: "Learner record" };
 
 export default async function LearnerGradesPage({
   params,
@@ -43,7 +47,11 @@ export default async function LearnerGradesPage({
       overrides: { where: { enrolmentId } },
     },
   });
-  const grades = await Promise.all(items.map((i) => gradeFor(enrolmentId, i.id)));
+  const [grades, activity] = await Promise.all([
+    Promise.all(items.map((i) => gradeFor(enrolmentId, i.id))),
+    getLearnerActivity({ id: user.id, roles: user.roles }, enrolmentId),
+  ]);
+  const totalTime = activity.modules.flatMap((m) => m.items).reduce((s, i) => s + i.timeSpentSec, 0);
   const base = `/teach/courses/${id}`;
 
   return (
@@ -57,7 +65,8 @@ export default async function LearnerGradesPage({
         </h2>
         <p className="text-muted">
           {enrolment.organization?.name ?? "Individual"} · {enrolment.progressPct}% complete ·{" "}
-          {enrolment.status.toLowerCase()}
+          {enrolment.status.toLowerCase()} · {formatDuration(totalTime)} on task · last active{" "}
+          {formatDate(enrolment.lastActiveAt)}
         </p>
       </header>
       <ol className="space-y-6">
@@ -121,6 +130,82 @@ export default async function LearnerGradesPage({
           );
         })}
       </ol>
+
+      <section className="space-y-3" aria-labelledby="activity-heading">
+        <h2 id="activity-heading" className="font-display text-h2">
+          Activity
+        </h2>
+        {activity.modules.map((m) => (
+          <div key={m.title}>
+            <p className="eyebrow mt-4 mb-1">{m.title}</p>
+            <ul className="divide-line border-line divide-y border-y text-sm">
+              {m.items.map((i) => (
+                <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2">
+                  <ItemTypeIcon type={i.type} className="text-muted size-4" />
+                  <span className="min-w-0 flex-1">{i.title}</span>
+                  <span className="text-muted font-mono text-xs">{formatDuration(i.timeSpentSec)}</span>
+                  <span className="text-muted w-28 text-xs">
+                    {i.lastViewedAt ? formatDate(i.lastViewedAt) : "Not opened"}
+                  </span>
+                  <Tag tone={i.status === "COMPLETED" ? "success" : "neutral"}>
+                    {i.status.replace("_", " ").toLowerCase()}
+                  </Tag>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </section>
+
+      {activity.attendance.length > 0 && (
+        <section className="space-y-3" aria-labelledby="attendance-heading">
+          <h2 id="attendance-heading" className="font-display text-h2">
+            Attendance
+          </h2>
+          <ul className="divide-line border-line divide-y border-y text-sm">
+            {activity.attendance.map((a) => (
+              <li key={a.id} className="flex flex-wrap items-center gap-4 py-2">
+                <span className="w-28 font-mono text-xs">{formatDate(a.startsAt)}</span>
+                <Link href={`${base}/sessions/${a.id}`} className="flex-1 underline-offset-4 hover:underline">
+                  {a.title}
+                </Link>
+                <Tag
+                  tone={
+                    a.record?.status === "PRESENT"
+                      ? "success"
+                      : a.record?.status === "ABSENT"
+                        ? "danger"
+                        : "neutral"
+                  }
+                >
+                  {a.record ? a.record.status.toLowerCase() : "not recorded"}
+                </Tag>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {activity.flags.length > 0 && (
+        <section className="space-y-3" aria-labelledby="flags-heading">
+          <h2 id="flags-heading" className="font-display text-h2">
+            At-risk history
+          </h2>
+          <ul className="space-y-2 text-sm">
+            {activity.flags.map((f) => (
+              <li key={f.id} className="border-line border-l-2 pl-3">
+                <span className="font-medium">{RULE_INFO[f.rule.type].label}</span> — {f.reason}
+                <span className="text-muted block text-xs">
+                  {formatDate(f.raisedAt)} →{" "}
+                  {f.resolvedAt
+                    ? `${f.resolvedManually ? "dismissed" : "cleared"} ${formatDate(f.resolvedAt)}${f.note ? ` (${f.note})` : ""}`
+                    : "open"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

@@ -34,3 +34,7 @@ Open the printed invitation link, set a password, and enrol your authenticator a
 - Reads and changes of personal data are written to an append-only audit log (enforced by a database trigger).
 - Client companies are isolated in the data layer (`src/server/pii/users.ts`, `src/server/rbac.ts`), and integration tests cover it.
 - `/styleguide` shows the design tokens and components.
+
+## Scheduled jobs
+
+Run `npm run jobs:nightly` once a day (for example 02:00 SAST via cron). It re-checks at-risk alerts, emails trainers a count of newly flagged learners, and cleans up expired sessions and tokens.

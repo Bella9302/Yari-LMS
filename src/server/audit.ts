@@ -45,7 +45,13 @@ export type AuditAction =
   | "assignment.marked"
   | "assignment.returned"
   | "grade.overridden"
-  | "gradebook.exported";
+  | "gradebook.exported"
+  | "atrisk.dismissed"
+  | "session.created"
+  | "session.updated"
+  | "session.cancelled"
+  | "attendance.recorded"
+  | "report.exported";
 
 export interface AuditEntry {
   actorId: string | null;

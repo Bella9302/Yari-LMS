@@ -288,3 +288,40 @@ src/
 - **Cloning:** creating a course from another course or a template copies its question banks, rubrics and quiz/assignment settings. Due dates are not copied.
 - **Login limit per network** raised from 20 to 100 attempts per 15 minutes. A whole site's learners often share one Wi-Fi address on a training day. Account lockout still stops password guessing.
 - **The database client connects on first use,** so `next build` and Docker image builds need no runtime secrets.
+
+## 10. Phase 4 (Tracking): what was built and the decisions behind it
+
+- **Time on task:**
+  - The item page counts a second only while the tab is visible and the learner has interacted in the last 90 seconds (or a video or audio clip is playing).
+  - Time is sent every 30 seconds and when the page is hidden (`sendBeacon`).
+  - The server caps each heartbeat by the real time since the previous one, so a tampered browser can't inflate hours.
+  - The heartbeat endpoint only accepts same-origin requests.
+- **Progress tab (trainers):**
+  - Every learner's % complete, items opened, time on task, last active, and status (due date, overdue, at risk). Flagged learners are listed first.
+  - The learner record page (from Progress or Gradebook) adds activity per item, attendance and at-risk history to grades.
+- **Live sessions and attendance:**
+  - Sessions can be in person, online or both, with venue or meeting link, SA times, edit and cancel.
+  - **QR check-in:**
+    - The trainer opens a full-screen code that changes every 30 seconds. The token is an HMAC of a per-session secret that never leaves the server.
+    - A code is accepted for its own window plus the previous one, so a screenshot forwarded on WhatsApp stops working within a minute.
+    - Check-in opens 30 minutes before the start and closes 30 minutes after the end. Only enrolled learners can check in.
+    - Scanning while signed out goes through login and comes back to the check-in page.
+  - **Online sessions:** "Join now" records attendance and opens the meeting link.
+  - **Register:** the trainer can set present, absent or excused, with a note, and export the register to CSV.
+  - Learners see upcoming sessions on their dashboard and course page.
+- **At-risk alerts:**
+  - Each course can have three rules, each with a threshold set by the trainer:
+    - **Inactive** for N days, counted from enrolment if the learner never started.
+    - **Missed deadline:** the course due date, or a required assignment not handed in, after N grace days.
+    - **Low score:** a marked quiz or assignment below N%, unless since passed.
+  - Rules are checked nightly, when a rule changes, and on demand. Flags clear themselves when the condition stops holding.
+  - A trainer can dismiss a flag with a note, which stops re-flagging for 7 days. Completed learners are never flagged.
+  - Flags are visible to trainers only.
+  - A daily email tells course trainers how many learners were newly flagged. It contains counts and a link only, never names.
+- **Nightly job:** `npm run jobs:nightly` re-checks at-risk rules, sends the digests, and clears expired sessions, tokens and rate-limit records. Schedule it daily (e.g. 02:00 SAST) with cron or a systemd timer. It is safe to run more often.
+- **Client Manager area** (`/org/[company]`):
+  - **Overview:** completion ring, staff, completed, overdue, inactive (14+ days), a "needs follow-up" list, and totals per course.
+  - **Staff:** invite, search, and a training summary per person. The staff page shows each course's progress, results (score and pass/fail) and session attendance.
+  - **Enrol staff.**
+  - **Compliance report:** on screen, as CSV, and as PDF (A4, with the non-accreditation statement). Exports are audit-logged.
+  - Companies only see enrolments made for their company. They never see submitted work, trainer feedback, or trainers' at-risk flags.

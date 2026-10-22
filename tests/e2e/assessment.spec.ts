@@ -84,6 +84,7 @@ test("the learner is enrolled by their company", async ({ page }, info) => {
   const f = fixtures(info);
   await signedIn(page, f.manager.email, f.password);
   await page.goto("/org");
+  await page.getByRole("link", { name: "Enrol staff", exact: true }).click();
   await page.getByLabel("Course", { exact: true }).selectOption({ label: title(info.project.name) });
   await page.getByRole("checkbox", { name: new RegExp(f.student.fullName) }).check();
   await page.getByRole("button", { name: "Enrol 1 person" }).click();

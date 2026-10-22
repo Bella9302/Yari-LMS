@@ -314,7 +314,7 @@ export async function enrolAction(_prev: FormState, formData: FormData): Promise
       organizationId: String(formData.get("organizationId") ?? "") || null,
     });
     revalidatePath(`${teach(courseId)}/people`);
-    revalidatePath("/org");
+    revalidatePath("/org", "layout");
     return {
       ok: true,
       message: `${result.enrolled} enrolled${result.skipped ? ` · ${result.skipped} already enrolled or not learners` : ""}.`,

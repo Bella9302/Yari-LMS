@@ -7,6 +7,8 @@ import { getOwnIdentity } from "@/server/pii/users";
 import { EmptyState, PageHeader, Stat } from "@/ui/primitives";
 import { listMyCourses } from "@/server/courses/learner";
 import { CourseCard } from "@/ui/course-card";
+import { upcomingSessionsFor } from "@/server/tracking/sessions";
+import { SessionList } from "@/ui/session-list";
 import { buttonClasses } from "@/ui/button";
 
 export const metadata: Metadata = { title: "Home" };
@@ -30,7 +32,7 @@ export default async function DashboardPage() {
 
   const isLearner = hasRole(user.roles, "LEARNER");
   const isTrainer = hasRole(user.roles, "TRAINER");
-  const [adminStats, orgStats, myCourses, teaching] = await Promise.all([
+  const [adminStats, orgStats, myCourses, sessions, teaching] = await Promise.all([
     isAdmin
       ? Promise.all([
           db.user.count({ where: { status: "ACTIVE" } }),
@@ -45,6 +47,7 @@ export default async function DashboardPage() {
         })
       : null,
     isLearner ? listMyCourses(user.id) : Promise.resolve([]),
+    isLearner ? upcomingSessionsFor(user.id, { limit: 5 }) : Promise.resolve([]),
     isTrainer
       ? db.course.count({
           where: { isTemplate: false, status: { not: "ARCHIVED" }, staff: { some: { userId: user.id } } },
@@ -125,6 +128,17 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
+          </div>
+        </section>
+      )}
+
+      {sessions.length > 0 && (
+        <section aria-labelledby="sessions-heading">
+          <h2 id="sessions-heading" className="font-display text-h2">
+            Coming up
+          </h2>
+          <div className="mt-6">
+            <SessionList sessions={sessions} showCourse />
           </div>
         </section>
       )}

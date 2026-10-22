@@ -81,20 +81,23 @@ model User {
   invitedBy     User?      @relation("InvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
   invitees      User[]     @relation("InvitedBy")
 
-  profile         UserProfile?
-  roles           RoleAssignment[]
-  memberships     OrgMembership[]
-  sessions        AuthSession[]
-  recoveryCodes   RecoveryCode[]
-  authTokens      AuthToken[]
-  consents        Consent[]
-  dataRequests    DataRequest[]    @relation("DataRequestUser")
-  handledRequests DataRequest[]    @relation("DataRequestHandler")
-  courseStaff     CourseStaff[]
-  enrolments      Enrolment[]
-  uploads         Asset[]
-  marks           Mark[]
-  gradeOverrides  GradeOverride[]
+  profile            UserProfile?
+  roles              RoleAssignment[]
+  memberships        OrgMembership[]
+  sessions           AuthSession[]
+  recoveryCodes      RecoveryCode[]
+  authTokens         AuthToken[]
+  consents           Consent[]
+  dataRequests       DataRequest[]    @relation("DataRequestUser")
+  handledRequests    DataRequest[]    @relation("DataRequestHandler")
+  courseStaff        CourseStaff[]
+  enrolments         Enrolment[]
+  uploads            Asset[]
+  marks              Mark[]
+  gradeOverrides     GradeOverride[]
+  sessionsLed        LiveSession[]
+  attendance         Attendance[]     @relation("AttendanceLearner")
+  attendanceRecorded Attendance[]     @relation("AttendanceRecorder")
 }
 
 model UserProfile {
@@ -359,6 +362,8 @@ model Course {
   enrolments    Enrolment[]
   questionBanks QuestionBank[]
   rubrics       Rubric[]
+  sessions      LiveSession[]
+  atRiskRules   AtRiskRule[]
 
   @@index([status, isTemplate])
 }
@@ -484,6 +489,7 @@ model Enrolment {
   quizAttempts   QuizAttempt[]
   submissions    Submission[]
   overrides      GradeOverride[]
+  atRiskFlags    AtRiskFlag[]
 
   @@unique([userId, courseId])
   @@index([courseId, status])
@@ -747,4 +753,111 @@ model GradeOverride {
   updatedAt   DateTime  @updatedAt
 
   @@unique([enrolmentId, itemId])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — Tracking
+// ---------------------------------------------------------------------------
+
+enum SessionMode {
+  IN_PERSON
+  ONLINE
+  HYBRID
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+enum AttendanceMethod {
+  QR
+  ONLINE_JOIN
+  MANUAL
+}
+
+enum AtRiskType {
+  INACTIVE_DAYS
+  MISSED_DEADLINE
+  SCORE_BELOW
+}
+
+model LiveSession {
+  id          String       @id @default(cuid(2))
+  courseId    String
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  title       String
+  description String       @default("")
+  mode        SessionMode
+  startsAt    DateTime
+  endsAt      DateTime
+  location    String?
+  meetingUrl  String?
+  trainerId   String?
+  trainer     User?        @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  // Server-side secret for the rotating check-in QR code. Never sent to browsers.
+  qrSecret    String
+  cancelledAt DateTime?
+  attendance  Attendance[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([courseId, startsAt])
+  @@index([startsAt])
+}
+
+model Attendance {
+  id           String           @id @default(cuid(2))
+  sessionId    String
+  session      LiveSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User             @relation("AttendanceLearner", fields: [userId], references: [id], onDelete: Cascade)
+  status       AttendanceStatus
+  method       AttendanceMethod
+  checkedInAt  DateTime?
+  recordedById String?
+  recordedBy   User?            @relation("AttendanceRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+  note         String?
+  updatedAt    DateTime         @updatedAt
+
+  @@unique([sessionId, userId])
+  @@index([userId])
+}
+
+// One rule of each type per course; the threshold means days (INACTIVE_DAYS, MISSED_DEADLINE grace)
+// or a percentage (SCORE_BELOW).
+model AtRiskRule {
+  id          String       @id @default(cuid(2))
+  courseId    String
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  type        AtRiskType
+  threshold   Int
+  active      Boolean      @default(true)
+  createdById String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  flags       AtRiskFlag[]
+
+  @@unique([courseId, type])
+}
+
+model AtRiskFlag {
+  id               String     @id @default(cuid(2))
+  ruleId           String
+  rule             AtRiskRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  enrolmentId      String
+  enrolment        Enrolment  @relation(fields: [enrolmentId], references: [id], onDelete: Cascade)
+  reason           String
+  raisedAt         DateTime   @default(now())
+  resolvedAt       DateTime?
+  // true when a trainer dismissed it (suppresses re-raising for a while); false when it cleared itself.
+  resolvedManually Boolean    @default(false)
+  resolvedById     String?
+  note             String?
+  // Set when the new-flag email digest included this flag.
+  notifiedAt       DateTime?
+
+  @@index([enrolmentId])
+  @@index([ruleId, enrolmentId, resolvedAt])
 }

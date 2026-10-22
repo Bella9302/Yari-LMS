@@ -9,10 +9,64 @@ import { buttonClasses } from "@/ui/button";
 import { Notice } from "@/ui/primitives";
 import { SubmitButton } from "@/ui/submit-button";
 
-/** Records that the learner opened the item (client-side, so link prefetching never counts as a view). */
+const IDLE_AFTER_MS = 90_000;
+const SEND_EVERY_S = 30;
+
+/**
+ * Records that the learner opened the item (client-side, so link prefetching never counts as a
+ * view), then counts active time: only while the tab is visible and the learner has interacted
+ * recently or media is playing. Time is sent every 30 s and when the page is hidden.
+ */
 export function ViewTracker({ itemId }: { itemId: string }) {
   useEffect(() => {
-    void recordViewAction(itemId);
+    let pending = 0;
+    let lastInput = Date.now();
+    const viewed = recordViewAction(itemId).catch(() => {});
+
+    const touch = () => (lastInput = Date.now());
+    const events = ["pointerdown", "keydown", "scroll", "touchstart", "mousemove"] as const;
+    events.forEach((e) => window.addEventListener(e, touch, { passive: true }));
+
+    const mediaPlaying = () =>
+      Array.from(document.querySelectorAll("video, audio")).some((m) => !(m as HTMLMediaElement).paused);
+
+    const send = (beacon: boolean) => {
+      if (pending < 1) return;
+      const payload = JSON.stringify({ itemId, seconds: Math.min(pending, 600) });
+      pending = 0;
+      if (beacon && navigator.sendBeacon) {
+        navigator.sendBeacon("/api/activity", new Blob([payload], { type: "application/json" }));
+      } else {
+        void viewed.then(() =>
+          fetch("/api/activity", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {}),
+        );
+      }
+    };
+
+    const tick = setInterval(() => {
+      const active =
+        document.visibilityState === "visible" && (Date.now() - lastInput < IDLE_AFTER_MS || mediaPlaying());
+      if (active) pending += 1;
+      if (pending >= SEND_EVERY_S) send(false);
+    }, 1000);
+
+    const onHide = () => document.visibilityState === "hidden" && send(true);
+    const onPageHide = () => send(true);
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", onPageHide);
+
+    return () => {
+      clearInterval(tick);
+      events.forEach((e) => window.removeEventListener(e, touch));
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", onPageHide);
+      send(true);
+    };
   }, [itemId]);
   return null;
 }

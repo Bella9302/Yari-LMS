@@ -22,6 +22,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "keys:generate": "tsx scripts/generate-keys.ts",
+    "jobs:nightly": "tsx --conditions=react-server scripts/nightly.ts",
     "test:integration": "vitest run --project integration",
     "postinstall": "prisma generate"
   },

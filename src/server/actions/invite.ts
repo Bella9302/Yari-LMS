@@ -59,7 +59,7 @@ export async function inviteAction(_prev: FormState, formData: FormData): Promis
   }
 
   revalidatePath("/admin/users");
-  revalidatePath("/org");
+  revalidatePath("/org", "layout");
   // Same message whether or not the person already had an account (no account enumeration).
   return { ok: true, message: `Invitation sent to ${parsed.data.email}.` };
 }
