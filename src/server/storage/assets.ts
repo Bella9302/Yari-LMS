@@ -177,7 +177,7 @@ export async function finishUpload(actor: Actor, assetId: string) {
   if (!contentMatchesType(asset.mime, head)) return reject("File contents don't match its type");
 
   // One pass: hash and scan from the same stream.
-  const { CLAMAV_HOST, CLAMAV_PORT } = env();
+  const { CLAMAV_HOST, CLAMAV_PORT, DEMO_MODE } = env();
   const hash = createHash("sha256");
   const source = await storage().read(asset.storageKey);
   const tee = new PassThrough();
@@ -186,7 +186,8 @@ export async function finishUpload(actor: Actor, assetId: string) {
   source.pipe(tee);
 
   let status: "CLEAN" | "SKIPPED" = "SKIPPED";
-  let detail: string | null = "No virus scanner configured (development)";
+  let detail: string | null =
+    DEMO_MODE === "true" ? "Not scanned (demo site)" : "No virus scanner configured (development)";
   if (CLAMAV_HOST) {
     try {
       const result = await scanStream(tee, { host: CLAMAV_HOST, port: CLAMAV_PORT });

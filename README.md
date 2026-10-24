@@ -39,6 +39,8 @@ Open the printed invitation link, set a password, and enrol your authenticator a
 
 ## Deploying
 
+**To present from a laptop** (no server, no DNS), see `docs/PRESENT-FROM-LAPTOP.md`. Docker Desktop and one command share the demo through a temporary Cloudflare link.
+
 `docs/DEPLOY.md` explains how to run a demo server on AWS (Cape Town) with Docker, Caddy (HTTPS), Postgres and ClamAV. `sudo ./deploy/bootstrap.sh` sets up a fresh Ubuntu server in one step.
 
 ## Security and POPIA

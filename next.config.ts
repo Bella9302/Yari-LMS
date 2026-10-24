@@ -40,6 +40,14 @@ function contentSecurityPolicy() {
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   serverExternalPackages: ["@node-rs/argon2", "@react-pdf/renderer"],
+  // Form submissions (server actions) must come from the same host. A demo run behind a tunnel
+  // (laptop + Cloudflare) sees a different host, so that build lists the tunnel's domain here.
+  // Empty for the normal server build.
+  experimental: {
+    serverActions: {
+      allowedOrigins: (process.env.SERVER_ACTIONS_ALLOWED_ORIGINS ?? "").split(",").filter(Boolean),
+    },
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

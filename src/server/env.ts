@@ -73,7 +73,9 @@ export function env(): Env {
   if (
     parsed.data.NODE_ENV === "production" &&
     !parsed.data.CLAMAV_HOST &&
-    parsed.data.ALLOW_UNSCANNED_UPLOADS !== "true"
+    parsed.data.ALLOW_UNSCANNED_UPLOADS !== "true" &&
+    // A demo (fictional data, e.g. run on a presenter's laptop) may skip the scanner.
+    parsed.data.DEMO_MODE !== "true"
   ) {
     throw new Error("CLAMAV_HOST is required in production: uploads must be virus-scanned");
   }

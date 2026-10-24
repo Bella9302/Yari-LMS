@@ -16,7 +16,10 @@ ARG APP_URL
 ARG DEMO_MODE=false
 ARG S3_REGION=af-south-1
 ARG S3_ENDPOINT=
-ENV APP_URL=$APP_URL DEMO_MODE=$DEMO_MODE S3_REGION=$S3_REGION S3_ENDPOINT=$S3_ENDPOINT
+# Only for a demo behind a tunnel, e.g. "*.trycloudflare.com". Leave empty on a real server.
+ARG SERVER_ACTIONS_ALLOWED_ORIGINS=
+ENV APP_URL=$APP_URL DEMO_MODE=$DEMO_MODE S3_REGION=$S3_REGION S3_ENDPOINT=$S3_ENDPOINT \
+  SERVER_ACTIONS_ALLOWED_ORIGINS=$SERVER_ACTIONS_ALLOWED_ORIGINS
 RUN npm run build && rm -rf .next/cache
 
 FROM public.ecr.aws/docker/library/node:22-bookworm

@@ -17,3 +17,5 @@ next-env.d.ts
 .sandbox-ca.crt
 deploy/demo-logins.txt
 .env.production
+.env.laptop
+deploy/laptop/demo-logins.txt

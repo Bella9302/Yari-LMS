@@ -1,0 +1,69 @@
+# Demo on a presenter's laptop, shared through a free temporary Cloudflare link
+# (https://<random>.trycloudflare.com). No server and no DNS. Start it with
+# deploy/laptop/start.sh (Mac/Linux) or deploy/laptop/start.ps1 (Windows).
+# Demo only: fictional data, no virus scanner, emails not sent.
+name: yari-laptop
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yari
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run the start script}
+      POSTGRES_DB: yari
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yari -d yari"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://app:3000
+
+  app:
+    build:
+      context: .
+      args:
+        # No HTTPS upgrade at build time, so the app also works at http://localhost:3000.
+        APP_URL: http://localhost:3000
+        DEMO_MODE: "true"
+        SERVER_ACTIONS_ALLOWED_ORIGINS: "*.trycloudflare.com"
+    image: yari-academy-laptop:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://yari:${POSTGRES_PASSWORD}@db:5432/yari
+      # The public link, known only once the tunnel is up (the start script passes it in).
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      DEMO_MODE: "true"
+      FIELD_ENC_KEYS: ${FIELD_ENC_KEYS}
+      FIELD_ENC_ACTIVE_KEY: ${FIELD_ENC_ACTIVE_KEY}
+      BLIND_INDEX_KEY: ${BLIND_INDEX_KEY}
+      STORAGE_DRIVER: local
+      STORAGE_LOCAL_DIR: /data/storage
+      TRUSTED_PROXY_HOPS: "1"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - uploads:/data/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:3000/login'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+volumes:
+  pgdata:
+  uploads:
