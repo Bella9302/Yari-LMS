@@ -40,7 +40,8 @@ export async function sendEmailBatch(messages: EmailMessage[]): Promise<number> 
   if (!RESEND_API_KEY) {
     if (NODE_ENV === "production" && DEMO_MODE !== "true")
       throw new Error("RESEND_API_KEY is not configured");
-    console.info(`\n[email batch] ${messages.length} × "${messages[0]!.subject}"\n`);
+    // Plain ASCII: Windows terminals can't always show symbols like "×".
+    console.info(`[email batch] ${messages.length} email(s) not sent: "${messages[0]!.subject}"`);
     return messages.length;
   }
   resend ??= new Resend(RESEND_API_KEY);
