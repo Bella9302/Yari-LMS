@@ -6,22 +6,23 @@ _Last reviewed: Phase 7 (October 2026). This is not legal advice. Review it with
 
 ## What personal information we hold
 
-| Information                                                           | Why                                                    | Where it lives               | Protection                                                                                           |
-| --------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Name, email, phone, address, employer                                 | Run training, contact learners, report to the employer | `UserProfile`, `User`        | AES-256-GCM per field, keys outside the database                                                     |
-| SA ID / passport number                                               | Identify learners on training records                  | `UserProfile`                | Encrypted. HMAC blind index for uniqueness. Masked (`******1234`) everywhere except for Super Admins |
-| Training records (progress, attempts, submissions, marks, attendance) | The service itself                                     | Course tables                | Access control by role, course and company                                                           |
-| Uploaded work and feedback files                                      | Assignments                                            | S3 (`af-south-1`, Cape Town) | Private bucket, short-lived signed URLs, virus-scanned                                               |
-| Ratings of trainers                                                   | Quality improvement                                    | `TrainerRating`              | Anonymous to trainers (released in batches of 3)                                                     |
-| Enquiries from the public site                                        | Reply to the enquiry                                   | `Enquiry`                    | Name, contact details and message encrypted. Deleted after 12 months                                 |
-| Security logs (sign-ins, views of personal data)                      | Security, accountability                               | `AuditLog`                   | Append-only (database trigger). IP addresses stored only as keyed hashes                             |
+| Information                                                           | Why                                                    | Where it lives                                       | Protection                                                                                           |
+| --------------------------------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Name, email, phone, address, employer                                 | Run training, contact learners, report to the employer | `UserProfile`, `User`                                | AES-256-GCM per field, keys outside the database                                                     |
+| SA ID / passport number                                               | Identify learners on training records                  | `UserProfile`                                        | Encrypted. HMAC blind index for uniqueness. Masked (`******1234`) everywhere except for Super Admins |
+| Training records (progress, attempts, submissions, marks, attendance) | The service itself                                     | Course tables                                        | Access control by role, course and company                                                           |
+| Uploaded work and feedback files                                      | Assignments                                            | The server's disk (South Africa), or S3 `af-south-1` | Served only to authorised users through short-lived links, virus-scanned                             |
+| Ratings of trainers                                                   | Quality improvement                                    | `TrainerRating`                                      | Anonymous to trainers (released in batches of 3)                                                     |
+| Enquiries from the public site                                        | Reply to the enquiry                                   | `Enquiry`                                            | Name, contact details and message encrypted. Deleted after 12 months                                 |
+| Security logs (sign-ins, views of personal data)                      | Security, accountability                               | `AuditLog`                                           | Append-only (database trigger). IP addresses stored only as keyed hashes                             |
 
 ## The eight conditions for lawful processing
 
 ### 1. Accountability (s8)
 
 - [x] Every view and change of personal details is written to an append-only audit log (`/admin/audit`): who did it, when, which fields, and never the values.
-- [ ] **YARI GROUP:** appoint and register an **Information Officer** (and deputy) with the Information Regulator. The privacy notice currently points to `privacy@yarigroup.co.za`. Make sure that mailbox exists and is monitored.
+- [x] **Information Officer appointed:** Sindiso Zhou. Named in the privacy notice (set in `src/lib/brand.ts`), with `privacy@yarigroup.co.za` as the contact.
+- [ ] **YARI GROUP:** register the Information Officer (and any deputy) with the Information Regulator (eServices portal). Make sure the `privacy@yarigroup.co.za` mailbox exists and Sindiso Zhou monitors it.
 - [ ] **YARI GROUP:** have the Information Officer review the privacy notice (`/privacy`, marked as a draft in the code).
 
 ### 2. Processing limitation: lawful, minimal, consent (s9–12)
@@ -75,15 +76,15 @@ _Last reviewed: Phase 7 (October 2026). This is not legal advice. Review it with
   - **Serving:** downloads are sandboxed.
 - [x] **Security review:** completed in Phase 7. Findings and fixes are in `docs/SECURITY.md`.
 - [ ] **YARI GROUP:** sign **operator agreements** (s21) with every service that processes data for you:
-  - AWS (hosting and storage, Cape Town region);
-  - Resend (email);
-  - the database host.
+  - the hosting provider (e.g. Oracle Cloud Johannesburg, or a South African VPS company);
+  - Resend (email).
 
   Resend is US-based, so emails (recipient address and content) leave South Africa. See condition 8, cross-border.
 
 - [ ] **YARI GROUP:** write a **breach response procedure** (s22). If personal information may have been accessed by someone unauthorised, notify the Information Regulator and the people affected as soon as reasonably possible. The audit log helps work out who was affected.
+- [x] **Backups:** the live server makes nightly encrypted backups of the database and uploaded files (`deploy/backup.sh`).
 - [ ] **YARI GROUP / hosting:**
-  - Encrypt database backups.
+  - Copy the backups off the server regularly.
   - Keep the encryption keys (`FIELD_ENC_KEYS`, `BLIND_INDEX_KEY`) in a secrets manager, separate from backups.
   - Test a restore.
 
@@ -105,7 +106,7 @@ _Last reviewed: Phase 7 (October 2026). This is not legal advice. Review it with
 
 ### Cross-border transfers (s72)
 
-- [x] **Inside South Africa:** the server and file storage are in South Africa (one server, AWS `af-south-1`).
+- [x] **Inside South Africa:** the server, database and file storage are in South Africa (one server in a South African data centre; see `docs/DEPLOY.md`).
 - [ ] **YARI GROUP:** email via Resend is processed in the USA. Either rely on s72(1)(b) (a contract with adequate protection, through Resend's data processing agreement) and mention it in the privacy notice, or switch to an email provider with South African or EU processing.
 
 ### Direct marketing (s69)
@@ -115,10 +116,10 @@ _Last reviewed: Phase 7 (October 2026). This is not legal advice. Review it with
 
 ## Before launch: YARI GROUP to do
 
-1. Register the Information Officer with the Information Regulator.
+1. Register the Information Officer (Sindiso Zhou) with the Information Regulator, and set up the `privacy@` mailbox.
 2. Finalise and approve the privacy notice and terms (currently drafts).
 3. Publish a PAIA manual.
-4. Sign operator agreements: AWS, Resend and the database host.
+4. Sign operator agreements: the hosting provider and Resend.
 5. Decide the training-record retention period.
 6. Write the breach response procedure and assign who does what.
-7. Set up encrypted backups, store keys separately, and test a restore.
+7. Copy backups off the server, store the keys separately, and test a restore.

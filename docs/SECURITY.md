@@ -49,7 +49,7 @@ Each finding was checked against the code before fixing. Regression tests are in
 - [ ] **Proxy hops:** set `TRUSTED_PROXY_HOPS` to the number of reverse proxies in front of the app: 1 for Caddy or nginx, 2 with a CDN in front. Make sure the outermost proxy _appends_ to `X-Forwarded-For`.
 - [ ] **Virus scanning:** `CLAMAV_HOST` is required. The app refuses to start without it in production.
 - [ ] **Keys:** keep `FIELD_ENC_KEYS`, `BLIND_INDEX_KEY`, `RESEND_API_KEY` and any S3 keys in a secrets manager (or use an IAM role instead of S3 keys). Never commit them, and never put them in backups.
-- [ ] **File storage:** S3 bucket private, CORS PUT only from `APP_URL`, versioning on, in `af-south-1`.
+- [ ] **File storage:** on the server's disk (`STORAGE_DRIVER=local`, the default deployment), or a private S3 bucket in `af-south-1` with CORS PUT only from `APP_URL` and versioning on.
 - [ ] **Nightly job:** schedule `npm run jobs:nightly` (02:00 SAST).
-- [ ] **Backups:** encrypted database backups, with a restore tested.
+- [ ] **Backups:** `deploy/backup.sh` runs nightly (encrypted). Copy them off the server and test a restore.
 - [ ] **Demo data:** never run `db:seed:demo` on the live server. It refuses unless the server runs with `DEMO_MODE=true`, which also shows a "demonstration site" banner and stops emails. Never set `DEMO_MODE` on the live site.

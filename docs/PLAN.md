@@ -199,22 +199,22 @@ src/
 
 ## 7. Decisions (2026-10-22)
 
-| Topic                     | Decision                                                                                                                                                                                                                                             |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hosting                   | One VPS in a South African region (Docker Compose).                                                                                                                                                                                                  |
-| Sign-up                   | **Invite-only.** Client Managers invite learners into their company. Super Admins can invite anyone, including individual learners with no company.                                                                                                  |
-| Identity documents        | SA ID number for South Africans, and passport number + issuing country for foreign nationals. **Required for learners**, optional for other roles. SA IDs are checked (date + Luhn).                                                                 |
-| Certificate verification  | The public page shows the learner's **full name**, course and date. The privacy notice says so.                                                                                                                                                      |
-| Course completion         | All required items done **and** a pass mark on quizzes and assignments.                                                                                                                                                                              |
-| Client Manager visibility | Default: progress, completion, pass/fail and final scores for their own staff. Not submission content or trainer feedback. ID numbers are masked.                                                                                                    |
-| Brand                     | The "YG" monogram traced from the business card (`public/brand/yg-monogram.svg`). Email domain `yarigroup.co.za`.                                                                                                                                    |
-| Information Officer       | None appointed yet. Under POPIA the head of the business is the Information Officer by default. The privacy notice uses `privacy@yarigroup.co.za` as a placeholder. Must be confirmed, and registered with the Information Regulator, before launch. |
-| Language                  | English only for now.                                                                                                                                                                                                                                |
-| Video, everything else    | Defaults from this document (Bunny Stream, R2, Resend, etc.).                                                                                                                                                                                        |
+| Topic                     | Decision                                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Hosting                   | One VPS in a South African region (Docker Compose).                                                                                                                                  |
+| Sign-up                   | **Invite-only.** Client Managers invite learners into their company. Super Admins can invite anyone, including individual learners with no company.                                  |
+| Identity documents        | SA ID number for South Africans, and passport number + issuing country for foreign nationals. **Required for learners**, optional for other roles. SA IDs are checked (date + Luhn). |
+| Certificate verification  | The public page shows the learner's **full name**, course and date. The privacy notice says so.                                                                                      |
+| Course completion         | All required items done **and** a pass mark on quizzes and assignments.                                                                                                              |
+| Client Manager visibility | Default: progress, completion, pass/fail and final scores for their own staff. Not submission content or trainer feedback. ID numbers are masked.                                    |
+| Brand                     | The "YG" monogram traced from the business card (`public/brand/yg-monogram.svg`). Email domain `yarigroup.co.za`.                                                                    |
+| Information Officer       | Sindiso Zhou. Contact `privacy@yarigroup.co.za`. Must be registered with the Information Regulator before launch.                                                                    |
+| Language                  | English only for now.                                                                                                                                                                |
+| Video, everything else    | Defaults from this document (Bunny Stream, R2, Resend, etc.).                                                                                                                        |
 
 ### Still to confirm (not blocking)
 
-- Does the `privacy@yarigroup.co.za` mailbox exist? Who will act as Information Officer?
+- Does the `privacy@yarigroup.co.za` mailbox exist? (Information Officer: Sindiso Zhou.)
 - The business card says "SACPCMP registered". Should the landing page show this as a credential of the consultancy, kept clearly separate from the (non-accredited) training?
 - Which contact details go on the public site: the card's numbers and Gmail address, or a new `@yarigroup.co.za` address?
 

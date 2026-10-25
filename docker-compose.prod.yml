@@ -19,7 +19,8 @@ services:
       retries: 20
 
   clamav:
-    image: clamav/clamav:1.4
+    # The Debian build runs on both x86 and ARM servers (the default image is x86 only).
+    image: clamav/clamav-debian:1.4
     restart: unless-stopped
     volumes:
       - clamdb:/var/lib/clamav

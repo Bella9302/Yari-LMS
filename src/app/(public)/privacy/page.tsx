@@ -20,9 +20,9 @@ export default function PrivacyPage() {
           <h2>Who we are</h2>
           <p>
             {BRAND.companyName} is the responsible party for personal information processed on this platform.
-            Contact our Information Officer at{" "}
-            <a className="underline" href={`mailto:privacy@${BRAND.domain}`}>
-              privacy@{BRAND.domain}
+            Our Information Officer is {BRAND.informationOfficer}. Contact the Information Officer at{" "}
+            <a className="underline" href={`mailto:${BRAND.privacyEmail}`}>
+              {BRAND.privacyEmail}
             </a>
             .
           </p>

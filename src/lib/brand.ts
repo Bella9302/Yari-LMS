@@ -4,6 +4,9 @@ export const BRAND = {
   academyName: "YARI Academy",
   companyName: "YARI GROUP",
   domain: "yarigroup.co.za",
+  /** Appointed under POPIA s55; named in the privacy notice. */
+  informationOfficer: "Sindiso Zhou",
+  privacyEmail: "privacy@yarigroup.co.za",
   /** Shown wherever completion documents are mentioned. Never remove while unaccredited. */
   nonAccreditationStatement:
     "This is a record of attendance and completion. It is not an accredited qualification.",
